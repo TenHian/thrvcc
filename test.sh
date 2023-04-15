@@ -22,6 +22,8 @@ assert 0 0
 assert 42 42
 # [2] support "+, -" operation
 assert 34 '12-34+56'
+# [3] support whitespaces
+assert 41 ' 12 + 34 - 5 '
 
 # if all fine, echo OK
 echo OK
