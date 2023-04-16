@@ -7,6 +7,6 @@ test: thrvcc
 	./test.sh
 
 clean:
-	rm -f rvcc *.o *.s tmp* a.out
+	rm -f thrvcc *.o *.s tmp* a.out
 
 .PHONY: clean test

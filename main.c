@@ -5,6 +5,8 @@
 #include <string.h>
 #include <ctype.h>
 
+static char *InputArgv;
+
 enum TokenKind {
 	TK_PUNCT, // operator like "+" "-"
 	TK_NUM,
@@ -29,6 +31,31 @@ static void error_out(char *fmt, ...)
 	exit(1);
 }
 
+static void verror_at(char *location, char *fmt, va_list va) {
+	fprintf(stderr, "%s\n", InputArgv);
+
+	int pos = location - InputArgv;
+	fprintf(stderr, "%*s", pos, " ");
+	fprintf(stderr, "^ ");
+	vfprintf(stderr, fmt, va);
+	fprintf(stderr, "\n");
+	va_end(va);
+}
+
+static void error_at(char *location, char *fmt, ...) {
+	va_list va;
+	va_start(va, fmt);
+	verror_at(location, fmt, va);
+	exit(1);
+}
+
+static void error_token(struct Token *token, char *fmt, ...) {
+	va_list va;
+	va_start(va, fmt);
+	verror_at(token->location, fmt, va);
+	exit(1);
+}
+
 static bool equal(struct Token *token, char *str)
 {
 	return memcmp(token->location, str, token->len) == 0 &&
@@ -38,14 +65,14 @@ static bool equal(struct Token *token, char *str)
 static struct Token *skip(struct Token *token, char *str)
 {
 	if (!equal(token, str))
-		error_out("expect '%s'", str);
+		error_token(token, "expect '%s'", str);
 	return token->next;
 }
 
 static int get_number(struct Token *token)
 {
 	if (token->kind != TK_NUM)
-		error_out("expect a number");
+		error_token(token, "expect a number");
 	return token->val;
 }
 
@@ -59,8 +86,9 @@ static struct Token *new_token(enum TokenKind Kind, char *start, char *end)
 }
 
 // Terminator Parser
-static struct Token *token_parser(char *formula)
+static struct Token *token_parser()
 {
+	char *formula = InputArgv;
 	struct Token head = {};
 	struct Token *cur = &head;
 
@@ -89,7 +117,7 @@ static struct Token *token_parser(char *formula)
 			continue;
 		}
 
-		error_out("invalid token: %c", *formula);
+		error_at(formula, "invalid token");
 	}
 
 	cur->next = new_token(TK_EOF, formula, formula);
@@ -103,7 +131,9 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	InputArgv = argv[1];
 	struct Token *token = token_parser(argv[1]);
+
 	printf("  .globl main\n");
 	printf("main:\n");
 	// parse first token, digit
