@@ -32,6 +32,12 @@ echo [5]
 assert 47 '5+6*7'
 assert 15 '5*(9-6)'
 assert 17 '1-8/(2*2)+3*6'
+# [6] support unary operators like + -
+echo [6]
+assert 10 '-10+20'
+assert 10 '- -10'
+assert 10 '- - +10'
+assert 48 '------12*+++++----++++++++++4'
 
 # if all fine, echo OK
 echo OK

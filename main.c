@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-static char *InputArgv;		// reg the argv[1]
+static char *InputArgv; // reg the argv[1]
 static int StackDepth;
 
 enum TokenKind {
@@ -139,6 +139,7 @@ enum NodeKind {
 	ND_SUB,
 	ND_DIV,
 	ND_MUL,
+	ND_NEG,
 	ND_NUM,
 };
 
@@ -153,6 +154,14 @@ static struct AstNode *new_astnode(enum NodeKind kind)
 {
 	struct AstNode *node = calloc(1, sizeof(struct AstNode));
 	node->kind = kind;
+	return node;
+}
+
+static struct AstNode *new_unary_tree_node(enum NodeKind kind,
+					   struct AstNode *expr)
+{
+	struct AstNode *node = new_astnode(kind);
+	node->lhs = expr;
 	return node;
 }
 
@@ -175,6 +184,7 @@ static struct AstNode *new_num_astnode(int val)
 
 static struct AstNode *expr(struct Token **rest, struct Token *token);
 static struct AstNode *mul(struct Token **rest, struct Token *token);
+static struct AstNode *unary(struct Token **rest, struct Token *token);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
 
 // expr = mul ("+" mul | "-" mul)*
@@ -188,10 +198,10 @@ static struct AstNode *expr(struct Token **rest, struct Token *token)
 						    mul(&token, token->next));
 			continue;
 		}
-		if(equal(token, "-")) {
+		if (equal(token, "-")) {
 			node = new_binary_tree_node(ND_SUB, node,
 						    mul(&token, token->next));
-			continue ;
+			continue;
 		}
 		*rest = token;
 		return node;
@@ -200,16 +210,19 @@ static struct AstNode *expr(struct Token **rest, struct Token *token)
 // mul = primary ("*" primary | "/" primary) *
 static struct AstNode *mul(struct Token **rest, struct Token *token)
 {
-	struct AstNode *node = primary(&token, token);
+	// unary
+	struct AstNode *node = unary(&token, token);
 
 	while (true) {
-		if(equal(token, "*")) {
-			node = new_binary_tree_node(ND_MUL, node, primary(&token, token->next));
-			continue ;
+		if (equal(token, "*")) {
+			node = new_binary_tree_node(ND_MUL, node,
+						    unary(&token, token->next));
+			continue;
 		}
-		if(equal(token, "/")) {
-			node = new_binary_tree_node(ND_DIV, node, primary(&token, token->next));
-			continue ;
+		if (equal(token, "/")) {
+			node = new_binary_tree_node(ND_DIV, node,
+						    unary(&token, token->next));
+			continue;
 		}
 
 		*rest = token;
@@ -217,17 +230,27 @@ static struct AstNode *mul(struct Token **rest, struct Token *token)
 	}
 }
 
+static struct AstNode *unary(struct Token **rest, struct Token *token)
+{
+	if (equal(token, "+"))
+		return unary(rest, token->next);
+	if (equal(token, "-"))
+		return new_unary_tree_node(ND_NEG, unary(rest, token->next));
+
+	return primary(rest, token);
+}
+
 // parse "(" ")" and num
 static struct AstNode *primary(struct Token **rest, struct Token *token)
 {
 	// "(" expr ")"
-	if(equal(token, "(")) {
+	if (equal(token, "(")) {
 		struct AstNode *node = expr(&token, token->next);
 		*rest = skip(token, ")");
 		return node;
 	}
 	// num
-	if(token->kind == TK_NUM) {
+	if (token->kind == TK_NUM) {
 		struct AstNode *node = new_num_astnode(token->val);
 		*rest = token->next;
 		return node;
@@ -259,9 +282,16 @@ static void pop(char *reg)
 
 static void gen_expr(struct AstNode *node)
 {
-	if(node->kind == ND_NUM) {
+	switch (node->kind) {
+	case ND_NUM:
 		printf("  li a0, %d\n", node->val);
 		return ;
+	case ND_NEG:
+		gen_expr(node->lhs);
+		printf("  neg a0, a0\n");
+		return ;
+	default:
+		break ;
 	}
 
 	gen_expr(node->rhs);
@@ -273,23 +303,22 @@ static void gen_expr(struct AstNode *node)
 	switch (node->kind) {
 	case ND_ADD: // + a0=a0+a1
 		printf("  add a0, a0, a1\n");
-		return ;
+		return;
 	case ND_SUB: // - a0=a0-a1
 		printf("  sub a0, a0, a1\n");
-		return ;
+		return;
 	case ND_MUL: // * a0=a0*a1
 		printf("  mul a0, a0, a1\n");
-		return ;
+		return;
 	case ND_DIV: // / a0=a0/a1
 		printf("  div a0, a0, a1\n");
-		return ;
+		return;
 	default:
-		break ;
+		break;
 	}
 
 	error_out("invalid expression");
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -304,7 +333,7 @@ int main(int argc, char *argv[])
 
 	// parse token stream
 	struct AstNode *ast_node = expr(&token, token);
-	if(token->kind != TK_EOF)
+	if (token->kind != TK_EOF)
 		error_token(token, "extra token");
 
 	printf("  .globl main\n");
