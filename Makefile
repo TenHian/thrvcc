@@ -1,7 +1,12 @@
 CFLAGS=-std=c11 -g -fno-common
 
-thrvcc: main.o
-	$(CC) -o thrvcc $(CFLAGS) main.o
+SRCS=$(wildcard *.c)
+OBJS=$(SRCS:.c=.o)
+
+thrvcc: $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+$(OBJS): thrvcc.h
 
 test: thrvcc
 	./test.sh
