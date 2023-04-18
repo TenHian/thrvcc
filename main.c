@@ -90,6 +90,22 @@ static struct Token *new_token(enum TokenKind Kind, char *start, char *end)
 	return token;
 }
 
+// Determine if Str starts with SubStr
+static bool is_start_with(char *str, char *substr)
+{
+	return strncmp(str, substr, strlen(substr)) == 0;
+}
+
+static int read_punct(char *op_str)
+{
+	// case binary operator
+	if (is_start_with(op_str, "==") || is_start_with(op_str, "!=") ||
+	    is_start_with(op_str, "<=") || is_start_with(op_str, ">="))
+		return 2;
+	// case unary operator
+	return ispunct(*op_str) ? 1 : 0;
+}
+
 // Terminator Parser
 static struct Token *token_parser()
 {
@@ -115,10 +131,12 @@ static struct Token *token_parser()
 		}
 
 		// parse operator
-		if (ispunct(*formula)) {
-			cur->next = new_token(TK_PUNCT, formula, formula + 1);
+		int punct_len = read_punct(formula);
+		if (punct_len) {
+			cur->next = new_token(TK_PUNCT, formula,
+					      formula + punct_len);
 			cur = cur->next;
-			++formula;
+			formula += punct_len;
 			continue;
 		}
 
@@ -140,6 +158,10 @@ enum NodeKind {
 	ND_DIV,
 	ND_MUL,
 	ND_NEG,
+	ND_EQ, // ==
+	ND_NE, // !=
+	ND_LT, // <
+	ND_LE, // <=
 	ND_NUM,
 };
 
@@ -182,13 +204,86 @@ static struct AstNode *new_num_astnode(int val)
 	return node;
 }
 
+static struct AstNode *equality(struct Token **rest, struct Token *token);
+static struct AstNode *relational(struct Token **rest, struct Token *token);
 static struct AstNode *expr(struct Token **rest, struct Token *token);
+static struct AstNode *add(struct Token **rest, struct Token *token);
 static struct AstNode *mul(struct Token **rest, struct Token *token);
 static struct AstNode *unary(struct Token **rest, struct Token *token);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
 
-// expr = mul ("+" mul | "-" mul)*
+// expr = equality
 static struct AstNode *expr(struct Token **rest, struct Token *token)
+{
+	return equality(rest, token);
+}
+
+// equality = relational ("==" relational | "!=" relational)*
+static struct AstNode *equality(struct Token **rest, struct Token *token)
+{
+	// relational
+	struct AstNode *node = relational(&token, token);
+
+	// ("==" relational | "!=" relational)*
+	while (true) {
+		// "==" relational
+		if (equal(token, "==")) {
+			node = new_binary_tree_node(
+				ND_EQ, node, relational(&token, token->next));
+			continue;
+		}
+		// "!=" relational
+		if (equal(token, "!=")) {
+			node = new_binary_tree_node(
+				ND_NE, node, relational(&token, token->next));
+			continue;
+		}
+
+		*rest = token;
+		return node;
+	}
+}
+
+// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+static struct AstNode *relational(struct Token **rest, struct Token *token)
+{
+	// add
+	struct AstNode *node = add(&token, token);
+
+	// ("<" add | "<=" add | ">" add | ">=" add)*
+	while (true) {
+		// "<" add
+		if (equal(token, "<")) {
+			node = new_binary_tree_node(ND_LT, node,
+						    add(&token, token->next));
+			continue;
+		}
+		// "<=" add
+		if (equal(token, "<=")) {
+			node = new_binary_tree_node(ND_LE, node,
+						    add(&token, token->next));
+			continue;
+		}
+		// ">" add, X>Y equal Y<X
+		if (equal(token, ">")) {
+			node = new_binary_tree_node(
+				ND_LT, add(&token, token->next), node);
+			continue;
+		}
+		// ">=" add
+		if (equal(token, ">=")) {
+			node = new_binary_tree_node(
+				ND_LE, add(&token, token->next), node);
+			continue;
+		}
+
+		*rest = token;
+		return node;
+	}
+}
+
+// expr = mul ("+" mul | "-" mul)*
+static struct AstNode *add(struct Token **rest, struct Token *token)
 {
 	struct AstNode *node = mul(&token, token);
 
@@ -285,13 +380,13 @@ static void gen_expr(struct AstNode *node)
 	switch (node->kind) {
 	case ND_NUM:
 		printf("  li a0, %d\n", node->val);
-		return ;
+		return;
 	case ND_NEG:
 		gen_expr(node->lhs);
 		printf("  neg a0, a0\n");
-		return ;
+		return;
 	default:
-		break ;
+		break;
 	}
 
 	gen_expr(node->rhs);
@@ -312,6 +407,31 @@ static void gen_expr(struct AstNode *node)
 		return;
 	case ND_DIV: // / a0=a0/a1
 		printf("  div a0, a0, a1\n");
+		return;
+	case ND_EQ:
+	case ND_NE:
+		// a0=a0^a1
+		printf("  xor a0, a0, a1\n");
+
+		if (node->kind == ND_EQ)
+			// a0==a1
+			// a0=a0^a1, sltiu a0, a0, 1
+			// if 0, mk 1
+			printf("  seqz a0, a0\n");
+		else
+			// a0!=a1
+			// a0=a0^a1, sltu a0, x0, a0
+			// if not eq to 0, turn it into 1
+			printf("  snez a0, a0\n");
+		return;
+	case ND_LT:
+		printf("  slt a0, a0, a1\n");
+		return;
+	case ND_LE:
+		// a0<=a1 equal to
+		// a0=a1<a0, a0=a1^1
+		printf("  slt a0, a1, a0\n");
+		printf("  xori a0, a0, 1\n");
 		return;
 	default:
 		break;
