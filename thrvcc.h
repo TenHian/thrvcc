@@ -41,10 +41,12 @@ enum NodeKind {
 	ND_LT, // <
 	ND_LE, // <=
 	ND_NUM,
+	ND_EXPR_STMT, // express statement
 };
 
 struct AstNode {
 	enum NodeKind kind;
+	struct AstNode *next; // next node, aka next expr
 	struct AstNode *lhs;
 	struct AstNode *rhs;
 	int val;

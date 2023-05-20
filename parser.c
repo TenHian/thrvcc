@@ -1,5 +1,18 @@
 #include "thrvcc.h"
 
+// program = stmt
+// stmt = expr stmt
+// expr stmt = expr;
+// expr = equality
+// equality = relational ("==" | "!=")
+// relational = add ("<" | "<=" | ">" | ">=")
+// add = mul ("+" | "-")
+// mul = unary ("*" | "/")
+// unary = ("+" | "-") | primary
+// primary = "(" expr ")" | num
+
+static struct AstNode *stmt(struct Token **rest, struct Token *token);
+static struct AstNode *exprstmt(struct Token **rest, struct Token *token);
 static struct AstNode *equality(struct Token **rest, struct Token *token);
 static struct AstNode *relational(struct Token **rest, struct Token *token);
 static struct AstNode *expr(struct Token **rest, struct Token *token);
@@ -37,6 +50,22 @@ static struct AstNode *new_num_astnode(int val)
 {
 	struct AstNode *node = new_astnode(ND_NUM);
 	node->val = val;
+	return node;
+}
+
+// parse stmt
+// stmt = exprStmt
+static struct AstNode *stmt(struct Token **rest, struct Token *token)
+{
+	return exprstmt(rest, token);
+}
+
+// parse expr
+// exprStmt = expr ;
+static struct AstNode *exprstmt(struct Token **rest, struct Token *token)
+{
+	struct AstNode *node = new_unary_tree_node(ND_EXPR_STMT, expr(&token, token));
+	*rest = skip(token, ";");
 	return node;
 }
 
@@ -185,8 +214,12 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 
 struct AstNode *parse(struct Token *token)
 {
-	struct AstNode *node = expr(&token, token);
-	if(token->kind != TK_EOF)
-		error_token(token, "extra token");
-	return node;
+	struct AstNode head = {};
+	struct AstNode *cur = &head;
+	// stmt*
+	while(token->kind!=TK_EOF){
+		cur->next = stmt(&token, token);
+		cur = cur->next;
+	}
+	return head.next;
 }

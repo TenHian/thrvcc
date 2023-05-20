@@ -87,12 +87,26 @@ static void gen_expr(struct AstNode *node)
 	error_out("invalid expression");
 }
 
+// gen stmt
+static void gen_stmt(struct AstNode *node){
+	if(node->kind == ND_EXPR_STMT){
+		gen_expr(node->lhs);
+		return ;
+	}
+
+	error_out("invalid statement");
+}
+
 void codegen(struct AstNode *node)
 {
 	printf("  .globl main\n");
 	printf("main:\n");
-	gen_expr(node);
-	printf("  ret\n");
 
-	assert(StackDepth == 0);
+	// Iterate through all statements
+	for(struct AstNode *nd = node; nd; nd=nd->next){
+		gen_stmt(nd);
+		assert(StackDepth == 0);
+	}
+
+	printf("  ret\n");
 }
