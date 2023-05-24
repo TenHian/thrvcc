@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <stdio.h>
 
 static int StackDepth;
 
@@ -22,6 +23,18 @@ static void pop(char *reg)
 	StackDepth--;
 }
 
+// calculate the absolute address of the given node
+// if error, means node not in menory
+static void gen_addr(struct AstNode *node)
+{
+	if (node->kind == ND_VAR) {
+		int offset = (node->name - 'a' + 1) * 8;
+		printf("  addi a0, fp, %d\n", -offset);
+		return;
+	}
+	error_out("not an lvalue");
+}
+
 static void gen_expr(struct AstNode *node)
 {
 	switch (node->kind) {
@@ -31,6 +44,17 @@ static void gen_expr(struct AstNode *node)
 	case ND_NEG:
 		gen_expr(node->lhs);
 		printf("  neg a0, a0\n");
+		return;
+	case ND_VAR:
+		gen_addr(node);
+		printf("  ld a0, 0(a0)\n");
+		return;
+	case ND_ASSIGN:
+		gen_addr(node->lhs);
+		push();
+		gen_expr(node->rhs);
+		pop("a1");
+		printf("  sd a0, 0(a1)\n");
 		return;
 	default:
 		break;
@@ -88,10 +112,11 @@ static void gen_expr(struct AstNode *node)
 }
 
 // gen stmt
-static void gen_stmt(struct AstNode *node){
-	if(node->kind == ND_EXPR_STMT){
+static void gen_stmt(struct AstNode *node)
+{
+	if (node->kind == ND_EXPR_STMT) {
 		gen_expr(node->lhs);
-		return ;
+		return;
 	}
 
 	error_out("invalid statement");
@@ -102,11 +127,40 @@ void codegen(struct AstNode *node)
 	printf("  .globl main\n");
 	printf("main:\n");
 
+	// stack layout
+	//-------------------------------// sp
+	//              fp                  fp = sp-8
+	//-------------------------------// fp
+	//              'a'                 fp-8
+	//              'b'                 fp-16
+	//              ...
+	//              'z'                 fp-208
+	//-------------------------------// sp=sp-8-208
+	//           expression
+	//-------------------------------//
+
+	// prologue
+	// push fp, store val of fp
+	printf("  addi sp, sp, -8\n");
+	printf("  sd fp, 0(sp)\n");
+	// write sp into fp
+	printf("  mv fp, sp\n");
+
+	// 26 letters, 26*8=208bits, stack alloc 208 bits
+	printf("  addi sp, sp, -208\n");
+
 	// Iterate through all statements
-	for(struct AstNode *nd = node; nd; nd=nd->next){
+	for (struct AstNode *nd = node; nd; nd = nd->next) {
 		gen_stmt(nd);
 		assert(StackDepth == 0);
 	}
+
+	// epilogue
+	// write back fp into sp
+	printf("  mv sp, fp\n");
+	// pop fp, recover fp
+	printf("  ld fp, 0(sp)\n");
+	printf("  addi sp, sp, 8\n");
 
 	printf("  ret\n");
 }

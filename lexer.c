@@ -109,6 +109,14 @@ struct Token *lexer(char *formula)
 			continue;
 		}
 
+		// parse identifiers
+		if ('a' <= *formula && *formula <= 'z') {
+			cur->next = new_token(TK_IDENT, formula, formula + 1);
+			cur = cur->next;
+			++formula;
+			continue;
+		}
+
 		// parse operator
 		int punct_len = read_punct(formula);
 		if (punct_len) {

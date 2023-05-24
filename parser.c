@@ -3,7 +3,8 @@
 // program = stmt
 // stmt = expr stmt
 // expr stmt = expr;
-// expr = equality
+// expr = assign
+// assign = equality ("=" assign)?
 // equality = relational ("==" | "!=")
 // relational = add ("<" | "<=" | ">" | ">=")
 // add = mul ("+" | "-")
@@ -13,6 +14,7 @@
 
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token);
+static struct AstNode *assign(struct Token **rest, struct Token *token);
 static struct AstNode *equality(struct Token **rest, struct Token *token);
 static struct AstNode *relational(struct Token **rest, struct Token *token);
 static struct AstNode *expr(struct Token **rest, struct Token *token);
@@ -53,6 +55,13 @@ static struct AstNode *new_num_astnode(int val)
 	return node;
 }
 
+static struct AstNode *new_var_astnode(char name)
+{
+	struct AstNode *node = new_astnode(ND_VAR);
+	node->name = name;
+	return node;
+}
+
 // parse stmt
 // stmt = exprStmt
 static struct AstNode *stmt(struct Token **rest, struct Token *token)
@@ -64,15 +73,30 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 // exprStmt = expr ;
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token)
 {
-	struct AstNode *node = new_unary_tree_node(ND_EXPR_STMT, expr(&token, token));
+	struct AstNode *node =
+		new_unary_tree_node(ND_EXPR_STMT, expr(&token, token));
 	*rest = skip(token, ";");
 	return node;
 }
 
-// expr = equality
+// expr = assign
 static struct AstNode *expr(struct Token **rest, struct Token *token)
 {
-	return equality(rest, token);
+	return assign(rest, token);
+}
+
+// assign = equality
+static struct AstNode *assign(struct Token **rest, struct Token *token)
+{
+	// equality
+	struct AstNode *node = equality(&token, token);
+	// there may be recursive assignments, such as a=b=1
+	// ("=" assign)?
+	if (equal(token, "="))
+		node = new_binary_tree_node(ND_ASSIGN, node,
+					    assign(&token, token->next));
+	*rest = token;
+	return node;
 }
 
 // equality = relational ("==" relational | "!=" relational)*
@@ -192,13 +216,19 @@ static struct AstNode *unary(struct Token **rest, struct Token *token)
 	return primary(rest, token);
 }
 
-// parse "(" ")" and num
+// parse "(" ")" | num | variables
 static struct AstNode *primary(struct Token **rest, struct Token *token)
 {
 	// "(" expr ")"
 	if (equal(token, "(")) {
 		struct AstNode *node = expr(&token, token->next);
 		*rest = skip(token, ")");
+		return node;
+	}
+	// ident
+	if (token->kind == TK_IDENT) {
+		struct AstNode *node = new_var_astnode(*token->location);
+		*rest = token->next;
 		return node;
 	}
 	// num
@@ -217,7 +247,7 @@ struct AstNode *parse(struct Token *token)
 	struct AstNode head = {};
 	struct AstNode *cur = &head;
 	// stmt*
-	while(token->kind!=TK_EOF){
+	while (token->kind != TK_EOF) {
 		cur->next = stmt(&token, token);
 		cur = cur->next;
 	}

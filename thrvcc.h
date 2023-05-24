@@ -7,6 +7,7 @@
 #include <string.h>
 
 enum TokenKind {
+	TK_IDENT, // identifiers
 	TK_PUNCT, // operator like "+" "-"
 	TK_NUM,
 	TK_EOF,
@@ -40,6 +41,8 @@ enum NodeKind {
 	ND_NE, // !=
 	ND_LT, // <
 	ND_LE, // <=
+	ND_ASSIGN,
+	ND_VAR, // variable
 	ND_NUM,
 	ND_EXPR_STMT, // express statement
 };
@@ -49,6 +52,7 @@ struct AstNode {
 	struct AstNode *next; // next node, aka next expr
 	struct AstNode *lhs;
 	struct AstNode *rhs;
+	char name; // string that store var_string
 	int val;
 };
 

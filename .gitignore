@@ -4,3 +4,5 @@ thrvcc
 tmp
 a.out
 .idea
+compile_commands.json
+.cache
