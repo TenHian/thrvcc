@@ -1,3 +1,8 @@
+// use POSIX.1 standard
+// use func strndup()
+
+#define _POSIX_C_SOURCE 200909L
+
 #include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
@@ -47,15 +52,27 @@ enum NodeKind {
 	ND_EXPR_STMT, // express statement
 };
 
+struct Local_Var {
+	struct Local_Var *next; // point to next local_var
+	char *name; // local_var name
+	int offset; // register fp offset
+};
+
+struct Function {
+	struct AstNode *body; // func body
+	struct Local_Var *locals; // local variables
+	int stack_size;
+};
+
 struct AstNode {
 	enum NodeKind kind;
 	struct AstNode *next; // next node, aka next expr
 	struct AstNode *lhs;
 	struct AstNode *rhs;
-	char name; // string that store var_string
+	struct Local_Var *var; // string that store var type
 	int val;
 };
 
-struct AstNode *parse(struct Token *token);
+struct Function *parse(struct Token *token);
 
-void codegen(struct AstNode *node);
+void codegen(struct Function *prog);

@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <stdbool.h>
 
 static char *InputArgv; // reg the argv[1]
 
@@ -75,6 +76,20 @@ static bool is_start_with(char *str, char *substr)
 	return strncmp(str, substr, strlen(substr)) == 0;
 }
 
+// determine the first letter of the identifier
+// a-z A-Z _
+static bool is_ident_1(char c)
+{
+	return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_';
+}
+
+// determine the other letter of the identifier
+// a-z A-Z 0-9 _
+static bool is_ident_2(char c)
+{
+	return is_ident_1(c) || ('0' <= c && c <= '9');
+}
+
 static int read_punct(char *op_str)
 {
 	// case binary operator
@@ -110,10 +125,13 @@ struct Token *lexer(char *formula)
 		}
 
 		// parse identifiers
-		if ('a' <= *formula && *formula <= 'z') {
-			cur->next = new_token(TK_IDENT, formula, formula + 1);
+		if (is_ident_1(*formula)) {
+			char *start = formula;
+			do {
+				++formula;
+			} while (is_ident_2(*formula));
+			cur->next = new_token(TK_IDENT, start, formula);
 			cur = cur->next;
-			++formula;
 			continue;
 		}
 

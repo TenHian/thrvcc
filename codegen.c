@@ -1,5 +1,4 @@
 #include "thrvcc.h"
-#include <stdio.h>
 
 static int StackDepth;
 
@@ -23,13 +22,20 @@ static void pop(char *reg)
 	StackDepth--;
 }
 
+// align to an integer multiple of align
+static int align_to(int N, int align)
+{
+	// (0, align] return align
+	return (N + align + 1) / align * align;
+}
+
 // calculate the absolute address of the given node
 // if error, means node not in menory
 static void gen_addr(struct AstNode *node)
 {
 	if (node->kind == ND_VAR) {
-		int offset = (node->name - 'a' + 1) * 8;
-		printf("  addi a0, fp, %d\n", -offset);
+		// offset fp
+		printf("  addi a0, fp, %d\n", node->var->offset);
 		return;
 	}
 	error_out("not an lvalue");
@@ -122,21 +128,34 @@ static void gen_stmt(struct AstNode *node)
 	error_out("invalid statement");
 }
 
-void codegen(struct AstNode *node)
+// cau the offset according to global var list
+static void assign_lvar_offsets(struct Function *prog)
 {
+	int offset = 0;
+	// read all var
+	for (struct Local_Var *var = prog->locals; var; var = var->next) {
+		// alloc 8 bits to every var
+		offset += 8;
+		// assign a offset to every var, aka address in stack
+		var->offset = -offset;
+	}
+	// align stack to 16 bits
+	prog->stack_size = align_to(offset, 16);
+}
+
+void codegen(struct Function *prog)
+{
+	assign_lvar_offsets(prog);
 	printf("  .globl main\n");
 	printf("main:\n");
 
 	// stack layout
 	//-------------------------------// sp
-	//              fp                  fp = sp-8
-	//-------------------------------// fp
-	//              'a'                 fp-8
-	//              'b'                 fp-16
-	//              ...
-	//              'z'                 fp-208
-	//-------------------------------// sp=sp-8-208
-	//           expression
+	//              fp
+	//-------------------------------// fp = sp-8
+	//              var
+	//-------------------------------// sp = sp-8-StackSize
+	//          express cau
 	//-------------------------------//
 
 	// prologue
@@ -146,11 +165,11 @@ void codegen(struct AstNode *node)
 	// write sp into fp
 	printf("  mv fp, sp\n");
 
-	// 26 letters, 26*8=208bits, stack alloc 208 bits
-	printf("  addi sp, sp, -208\n");
+	// offset is the stack usable size
+	printf("  addi sp, sp, -%d\n", prog->stack_size);
 
 	// Iterate through all statements
-	for (struct AstNode *nd = node; nd; nd = nd->next) {
+	for (struct AstNode *nd = prog->body; nd; nd = nd->next) {
 		gen_stmt(nd);
 		assert(StackDepth == 0);
 	}

@@ -1,4 +1,9 @@
 #include "thrvcc.h"
+#include <stdlib.h>
+#include <string.h>
+
+// all var add in this list while parse
+struct Local_Var *locals;
 
 // program = stmt
 // stmt = expr stmt
@@ -22,6 +27,16 @@ static struct AstNode *add(struct Token **rest, struct Token *token);
 static struct AstNode *mul(struct Token **rest, struct Token *token);
 static struct AstNode *unary(struct Token **rest, struct Token *token);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
+
+// find a local var by search name
+static struct Local_Var *find_var(struct Token *token)
+{
+	for (struct Local_Var *var = locals; var; var = var->next)
+		if (strlen(var->name) == token->len &&
+		    !strncmp(token->location, var->name, token->len))
+			return var;
+	return NULL;
+}
 
 static struct AstNode *new_astnode(enum NodeKind kind)
 {
@@ -55,10 +70,21 @@ static struct AstNode *new_num_astnode(int val)
 	return node;
 }
 
-static struct AstNode *new_var_astnode(char name)
+// add a var into global var list
+static struct Local_Var *new_lvar(char *name)
+{
+	struct Local_Var *var = calloc(1, sizeof(struct Local_Var));
+	var->name = name;
+	// insert into head
+	var->next = locals;
+	locals = var;
+	return var;
+}
+
+static struct AstNode *new_var_astnode(struct Local_Var *var)
 {
 	struct AstNode *node = new_astnode(ND_VAR);
-	node->name = name;
+	node->var = var;
 	return node;
 }
 
@@ -227,9 +253,13 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 	}
 	// ident
 	if (token->kind == TK_IDENT) {
-		struct AstNode *node = new_var_astnode(*token->location);
+		// find var
+		struct Local_Var *var = find_var(token);
+		// if var not exist, creat a new var in global var list
+		if (!var)
+			var = new_lvar(strndup(token->location, token->len));
 		*rest = token->next;
-		return node;
+		return new_var_astnode(var);
 	}
 	// num
 	if (token->kind == TK_NUM) {
@@ -242,14 +272,19 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 	return NULL;
 }
 
-struct AstNode *parse(struct Token *token)
+struct Function *parse(struct Token *token)
 {
 	struct AstNode head = {};
 	struct AstNode *cur = &head;
+
 	// stmt*
 	while (token->kind != TK_EOF) {
 		cur->next = stmt(&token, token);
 		cur = cur->next;
 	}
-	return head.next;
+
+	struct Function *prog = calloc(1, sizeof(struct Function));
+	prog->body = head.next;
+	prog->locals = locals;
+	return prog;
 }

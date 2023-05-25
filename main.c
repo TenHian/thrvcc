@@ -10,9 +10,9 @@ int main(int argc, char *argv[])
 	struct Token *token = lexer(argv[1]);
 
 	// parse gen ast
-	struct AstNode *node = parse(token);
+	struct Function *prog = parse(token);
 
-	codegen(node);
+	codegen(prog);
 
 	return 0;
 }
