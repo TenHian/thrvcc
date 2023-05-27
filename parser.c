@@ -7,7 +7,10 @@ struct Local_Var *locals;
 
 // program = "{" compoundStmt
 // compoundStmt = stmt* "}"
-// stmt = "return" expr ";" | "{" compoundStmt |stmt
+// stmt = "return" expr ";"
+//      | "if" "(" expr ")" stmt ("else" stmt)?
+//      | "{" compoundStmt
+//      | exprStmt
 // expr stmt = expr? ;
 // expr = assign
 // assign = equality ("=" assign)?
@@ -91,7 +94,10 @@ static struct AstNode *new_var_astnode(struct Local_Var *var)
 }
 
 // parse stmt
-// stmt = "return" expr ";" | "{" compoundStmt |exprStmt
+// stmt = "return" expr ";"
+//      | "if" "(" expr ")" stmt ("else" stmt)?
+//      | "{" compoundStmt
+//      | exprStmt
 static struct AstNode *stmt(struct Token **rest, struct Token *token)
 {
 	// "return" expr ";"
@@ -99,6 +105,21 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		struct AstNode *node = new_unary_tree_node(
 			ND_RETURN, expr(&token, token->next));
 		*rest = skip(token, ";");
+		return node;
+	}
+	// "if" "(" expr ")" stmt ("else" stmt)?
+	if (equal(token, "if")) {
+		struct AstNode *node = new_astnode(ND_IF);
+		// conditionial stmt
+		token = skip(token->next, "(");
+		node->condition = expr(&token, token);
+		token = skip(token, ")");
+		// then stmt
+		node->then_ = stmt(&token, token);
+		// ("else" stmt)?
+		if (equal(token, "else"))
+			node->else_ = stmt(&token, token->next);
+		*rest = token;
 		return node;
 	}
 	// "{" compoundStmt

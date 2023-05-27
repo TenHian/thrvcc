@@ -49,6 +49,7 @@ enum NodeKind {
 	ND_LE, // <=
 	ND_ASSIGN,
 	ND_RETURN, // return
+	ND_IF, // if
 	ND_BLOCK, // code block
 	ND_VAR, // variable
 	ND_NUM,
@@ -70,9 +71,18 @@ struct Function {
 struct AstNode {
 	enum NodeKind kind;
 	struct AstNode *next; // next node, aka next expr
+
 	struct AstNode *lhs;
 	struct AstNode *rhs;
-	struct AstNode *body; // code block
+
+	// if stmt
+	struct AstNode *condition;
+	struct AstNode *then_;
+	struct AstNode *else_;
+
+	// code block
+	struct AstNode *body;
+
 	struct Local_Var *var; // string that store var type
 	int val;
 };

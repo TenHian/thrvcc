@@ -92,5 +92,14 @@ assert 3 '{ {1; {2;} return 3;} }'
 echo [13]
 assert 5 '{ ;;; return 5; }'
 
+# [14] Support "if" statement
+echo [14]
+assert 3 '{ if (0) return 2; return 3; }'
+assert 3 '{ if (1-1) return 2; return 3; }'
+assert 2 '{ if (1) return 2; return 3; }'
+assert 2 '{ if (2-1) return 2; return 3; }'
+assert 4 '{ if (0) { 1; 2; return 3; } else { return 4; } }'
+assert 3 '{ if (1) { 1; 2; return 3; } else { return 4; } }'
+
 # if all fine, echo OK
 echo OK

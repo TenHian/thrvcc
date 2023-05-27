@@ -1,7 +1,13 @@
 #include "thrvcc.h"
-#include <stdio.h>
 
 static int StackDepth;
+
+// code block count
+static int count(void)
+{
+	static int Count_Num = 1;
+	return Count_Num++;
+}
 
 // push stack, mov the tem result into stack
 // *sp* is stack pointer, stack grows down, 8 bytes to a unit at 64 bits mode
@@ -122,6 +128,26 @@ static void gen_expr(struct AstNode *node)
 static void gen_stmt(struct AstNode *node)
 {
 	switch (node->kind) {
+	// if stmt
+	case ND_IF: {
+		// code block count
+		int C = count();
+		// gen conditional stmt
+		gen_expr(node->condition);
+		// determine condition, if 0 jump to label else
+		printf("  beqz a0, .L.else.%d\n", C);
+		// then stmt
+		gen_stmt(node->then_);
+		// over, jump to stmt after if stmt
+		printf("  j .L.end.%d\n", C);
+		// else block, else block may empty, so output its label
+		printf(".L.else.%d:\n", C);
+		// gen else_
+		if (node->else_)
+			gen_stmt(node->else_);
+		printf(".L.end.%d:\n", C);
+		return;
+	}
 	case ND_BLOCK:
 		for (struct AstNode *nd = node->body; nd; nd = nd->next)
 			gen_stmt(nd);

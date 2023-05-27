@@ -100,11 +100,24 @@ static int read_punct(char *op_str)
 	return ispunct(*op_str) ? 1 : 0;
 }
 
+// determine if it is a keyword
+static bool is_keyword(struct Token *token)
+{
+	// keyword list
+	static char *KeyWords[] = { "return", "if", "else" };
+
+	for (int i = 0; i < sizeof(KeyWords) / sizeof(*KeyWords); ++i) {
+		if (equal(token, KeyWords[i]))
+			return true;
+	}
+	return false;
+}
+
 // convert the terminator named "return" to KEYWORD
 static void convert_keyword(struct Token *token)
 {
 	for (struct Token *t = token; t->kind != TK_EOF; t = t->next) {
-		if (equal(t, "return"))
+		if (is_keyword(t))
 			t->kind = TK_KEYWORD;
 	}
 }
