@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <stdio.h>
 
 static int StackDepth;
 
@@ -120,9 +121,18 @@ static void gen_expr(struct AstNode *node)
 // gen stmt
 static void gen_stmt(struct AstNode *node)
 {
-	if (node->kind == ND_EXPR_STMT) {
+	switch (node->kind) {
+	case ND_RETURN:
+		gen_expr(node->lhs);
+		// unconditional jump statement, jump to the .L.return segment
+		// 'j offset' is an alias instruction for 'jal x0, offset'
+		printf("  j .L.return\n");
+		return;
+	case ND_EXPR_STMT:
 		gen_expr(node->lhs);
 		return;
+	default:
+		break;
 	}
 
 	error_out("invalid statement");
@@ -175,6 +185,8 @@ void codegen(struct Function *prog)
 	}
 
 	// epilogue
+	// output return seg label
+	printf(".L.return:\n");
 	// write back fp into sp
 	printf("  mv sp, fp\n");
 	// pop fp, recover fp

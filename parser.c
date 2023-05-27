@@ -6,7 +6,7 @@
 struct Local_Var *locals;
 
 // program = stmt
-// stmt = expr stmt
+// stmt = "return" expr ";" | stmt
 // expr stmt = expr;
 // expr = assign
 // assign = equality ("=" assign)?
@@ -89,9 +89,15 @@ static struct AstNode *new_var_astnode(struct Local_Var *var)
 }
 
 // parse stmt
-// stmt = exprStmt
+// stmt = "return" expr ";" | exprStmt
 static struct AstNode *stmt(struct Token **rest, struct Token *token)
 {
+	if (equal(token, "return")) {
+		struct AstNode *node = new_unary_tree_node(
+			ND_RETURN, expr(&token, token->next));
+		*rest = skip(token, ";");
+		return node;
+	}
 	return exprstmt(rest, token);
 }
 

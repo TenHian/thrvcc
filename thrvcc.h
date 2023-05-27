@@ -14,6 +14,7 @@
 enum TokenKind {
 	TK_IDENT, // identifiers
 	TK_PUNCT, // operator like "+" "-"
+	TK_KEYWORD, // keyword
 	TK_NUM,
 	TK_EOF,
 };
@@ -47,6 +48,7 @@ enum NodeKind {
 	ND_LT, // <
 	ND_LE, // <=
 	ND_ASSIGN,
+	ND_RETURN, // return
 	ND_VAR, // variable
 	ND_NUM,
 	ND_EXPR_STMT, // express statement

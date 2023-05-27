@@ -100,6 +100,15 @@ static int read_punct(char *op_str)
 	return ispunct(*op_str) ? 1 : 0;
 }
 
+// convert the terminator named "return" to KEYWORD
+static void convert_keyword(struct Token *token)
+{
+	for (struct Token *t = token; t->kind != TK_EOF; t = t->next) {
+		if (equal(t, "return"))
+			t->kind = TK_KEYWORD;
+	}
+}
+
 // Terminator Parser
 struct Token *lexer(char *formula)
 {
@@ -124,7 +133,7 @@ struct Token *lexer(char *formula)
 			continue;
 		}
 
-		// parse identifiers
+		// parse identifiers or keyword
 		if (is_ident_1(*formula)) {
 			char *start = formula;
 			do {
@@ -149,5 +158,7 @@ struct Token *lexer(char *formula)
 	}
 
 	cur->next = new_token(TK_EOF, formula, formula);
+	// turn all of keyword that terminator into keyword
+	convert_keyword(head.next);
 	return head.next;
 }
