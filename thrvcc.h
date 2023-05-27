@@ -50,6 +50,7 @@ enum NodeKind {
 	ND_ASSIGN,
 	ND_RETURN, // return
 	ND_IF, // if
+	ND_FOR, // for
 	ND_BLOCK, // code block
 	ND_VAR, // variable
 	ND_NUM,
@@ -75,10 +76,12 @@ struct AstNode {
 	struct AstNode *lhs;
 	struct AstNode *rhs;
 
-	// if stmt
+	// if stmt or for stmt
 	struct AstNode *condition;
 	struct AstNode *then_;
 	struct AstNode *else_;
+	struct AstNode *init; // init stmt
+	struct AstNode *increase; // increase stmt
 
 	// code block
 	struct AstNode *body;

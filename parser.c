@@ -1,6 +1,4 @@
 #include "thrvcc.h"
-#include <stdlib.h>
-#include <string.h>
 
 // all var add in this list while parse
 struct Local_Var *locals;
@@ -9,6 +7,7 @@ struct Local_Var *locals;
 // compoundStmt = stmt* "}"
 // stmt = "return" expr ";"
 //      | "if" "(" expr ")" stmt ("else" stmt)?
+//      | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //      | "{" compoundStmt
 //      | exprStmt
 // expr stmt = expr? ;
@@ -96,6 +95,7 @@ static struct AstNode *new_var_astnode(struct Local_Var *var)
 // parse stmt
 // stmt = "return" expr ";"
 //      | "if" "(" expr ")" stmt ("else" stmt)?
+//      | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //      | "{" compoundStmt
 //      | exprStmt
 static struct AstNode *stmt(struct Token **rest, struct Token *token)
@@ -120,6 +120,31 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		if (equal(token, "else"))
 			node->else_ = stmt(&token, token->next);
 		*rest = token;
+		return node;
+	}
+	// "for" "(" exprStmt expr? ";" expr? ")" stmt
+	if (equal(token, "for")) {
+		struct AstNode *node = new_astnode(ND_FOR);
+		// "("
+		token = skip(token->next, "(");
+
+		// exprStmt
+		node->init = exprstmt(&token, token);
+
+		// expr?
+		if (!equal(token, ";"))
+			node->condition = expr(&token, token);
+		// ";"
+		token = skip(token, ";");
+
+		// expr?
+		if (!equal(token, ")"))
+			node->increase = expr(&token, token);
+		// ")"
+		token = skip(token, ")");
+
+		// stmt
+		node->then_ = stmt(rest, token);
 		return node;
 	}
 	// "{" compoundStmt

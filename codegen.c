@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <stdio.h>
 
 static int StackDepth;
 
@@ -145,6 +146,32 @@ static void gen_stmt(struct AstNode *node)
 		// gen else_
 		if (node->else_)
 			gen_stmt(node->else_);
+		printf(".L.end.%d:\n", C);
+		return;
+	}
+	// for stmt
+	case ND_FOR: {
+		// code block count
+		int C = count();
+		// gen init stmt
+		gen_stmt(node->init);
+		// output loop's head label
+		printf(".L.begin.%d:\n", C);
+		// process loop's conditional stmt
+		if (node->condition) {
+			// gen loop's conditional stmt
+			gen_expr(node->condition);
+			// determine condition, if 0 jump to loop's end
+			printf("  beqz a0, .L.end.%d\n", C);
+		}
+		// gen loop's body
+		gen_stmt(node->then_);
+		// process loop's increase stmt
+		if (node->increase)
+			gen_expr(node->increase);
+		// jump to loop's head
+		printf("  j .L.begin.%d\n", C);
+		// output the loop's tail label
 		printf(".L.end.%d:\n", C);
 		return;
 	}

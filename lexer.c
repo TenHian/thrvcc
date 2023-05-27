@@ -1,5 +1,4 @@
 #include "thrvcc.h"
-#include <stdbool.h>
 
 static char *InputArgv; // reg the argv[1]
 
@@ -104,7 +103,7 @@ static int read_punct(char *op_str)
 static bool is_keyword(struct Token *token)
 {
 	// keyword list
-	static char *KeyWords[] = { "return", "if", "else" };
+	static char *KeyWords[] = { "return", "if", "else", "for" };
 
 	for (int i = 0; i < sizeof(KeyWords) / sizeof(*KeyWords); ++i) {
 		if (equal(token, KeyWords[i]))
