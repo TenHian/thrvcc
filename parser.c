@@ -8,6 +8,7 @@ struct Local_Var *locals;
 // stmt = "return" expr ";"
 //      | "if" "(" expr ")" stmt ("else" stmt)?
 //      | "for" "(" exprStmt expr? ";" expr? ")" stmt
+//      | "while" "(" expr ")" stmt
 //      | "{" compoundStmt
 //      | exprStmt
 // expr stmt = expr? ;
@@ -96,6 +97,7 @@ static struct AstNode *new_var_astnode(struct Local_Var *var)
 // stmt = "return" expr ";"
 //      | "if" "(" expr ")" stmt ("else" stmt)?
 //      | "for" "(" exprStmt expr? ";" expr? ")" stmt
+//      | "while" "(" expr ")" stmt
 //      | "{" compoundStmt
 //      | exprStmt
 static struct AstNode *stmt(struct Token **rest, struct Token *token)
@@ -147,6 +149,20 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		node->then_ = stmt(rest, token);
 		return node;
 	}
+	// "while" "(" expr ")" stmt
+	if (equal(token, "while")) {
+		struct AstNode *node = new_astnode(ND_FOR);
+		// "("
+		token = skip(token->next, "(");
+		// expr
+		node->condition = expr(&token, token);
+		// ")"
+		token = skip(token, ")");
+		// stmt
+		node->then_ = stmt(rest, token);
+		return node;
+	}
+
 	// "{" compoundStmt
 	if (equal(token, "{"))
 		return compoundstmt(rest, token->next);

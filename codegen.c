@@ -149,12 +149,13 @@ static void gen_stmt(struct AstNode *node)
 		printf(".L.end.%d:\n", C);
 		return;
 	}
-	// for stmt
+	// for stmt or while stmt
 	case ND_FOR: {
 		// code block count
 		int C = count();
 		// gen init stmt
-		gen_stmt(node->init);
+		if (node->init)
+			gen_stmt(node->init);
 		// output loop's head label
 		printf(".L.begin.%d:\n", C);
 		// process loop's conditional stmt

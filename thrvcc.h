@@ -50,7 +50,7 @@ enum NodeKind {
 	ND_ASSIGN,
 	ND_RETURN, // return
 	ND_IF, // if
-	ND_FOR, // for
+	ND_FOR, // for or while
 	ND_BLOCK, // code block
 	ND_VAR, // variable
 	ND_NUM,

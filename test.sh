@@ -106,5 +106,9 @@ echo [15]
 assert 55 '{ i=0; j=0; for (i=0; i<=10; i=i+1) j=i+j; return j; }'
 assert 3 '{ for (;;) {return 3;} return 5; }'
 
+# [16] Support "while" statement
+echo [16]
+assert 10 '{ i=0; while(i<10) { i=i+1; } return i; }'
+
 # if all fine, echo OK
 echo OK
