@@ -8,7 +8,7 @@ struct Local_Var *locals;
 // program = "{" compoundStmt
 // compoundStmt = stmt* "}"
 // stmt = "return" expr ";" | "{" compoundStmt |stmt
-// expr stmt = expr;
+// expr stmt = expr? ;
 // expr = assign
 // assign = equality ("=" assign)?
 // equality = relational ("==" | "!=")
@@ -131,6 +131,12 @@ static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 // exprStmt = expr ;
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token)
 {
+	// ";"
+	if (equal(token, ";")) {
+		*rest = token->next;
+		return new_astnode(ND_BLOCK);
+	}
+	// expr ";"
 	struct AstNode *node =
 		new_unary_tree_node(ND_EXPR_STMT, expr(&token, token));
 	*rest = skip(token, ";");

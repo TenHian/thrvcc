@@ -88,5 +88,9 @@ assert 3 '{ 1; 2; return 3; }'
 echo [12]
 assert 3 '{ {1; {2;} return 3;} }'
 
+# [13] Support empty statements
+echo [13]
+assert 5 '{ ;;; return 5; }'
+
 # if all fine, echo OK
 echo OK
