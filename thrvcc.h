@@ -49,6 +49,7 @@ enum NodeKind {
 	ND_LE, // <=
 	ND_ASSIGN,
 	ND_RETURN, // return
+	ND_BLOCK, // code block
 	ND_VAR, // variable
 	ND_NUM,
 	ND_EXPR_STMT, // express statement
@@ -71,6 +72,7 @@ struct AstNode {
 	struct AstNode *next; // next node, aka next expr
 	struct AstNode *lhs;
 	struct AstNode *rhs;
+	struct AstNode *body; // code block
 	struct Local_Var *var; // string that store var type
 	int val;
 };

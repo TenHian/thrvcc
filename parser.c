@@ -5,8 +5,9 @@
 // all var add in this list while parse
 struct Local_Var *locals;
 
-// program = stmt
-// stmt = "return" expr ";" | stmt
+// program = "{" compoundStmt
+// compoundStmt = stmt* "}"
+// stmt = "return" expr ";" | "{" compoundStmt |stmt
 // expr stmt = expr;
 // expr = assign
 // assign = equality ("=" assign)?
@@ -15,8 +16,9 @@ struct Local_Var *locals;
 // add = mul ("+" | "-")
 // mul = unary ("*" | "/")
 // unary = ("+" | "-") | primary
-// primary = "(" expr ")" | num
+// primary = "(" expr ")" | ident |num
 
+static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token);
 static struct AstNode *assign(struct Token **rest, struct Token *token);
@@ -89,16 +91,40 @@ static struct AstNode *new_var_astnode(struct Local_Var *var)
 }
 
 // parse stmt
-// stmt = "return" expr ";" | exprStmt
+// stmt = "return" expr ";" | "{" compoundStmt |exprStmt
 static struct AstNode *stmt(struct Token **rest, struct Token *token)
 {
+	// "return" expr ";"
 	if (equal(token, "return")) {
 		struct AstNode *node = new_unary_tree_node(
 			ND_RETURN, expr(&token, token->next));
 		*rest = skip(token, ";");
 		return node;
 	}
+	// "{" compoundStmt
+	if (equal(token, "{"))
+		return compoundstmt(rest, token->next);
+	// exprStmt
 	return exprstmt(rest, token);
+}
+
+// parse compound stmt
+// compoundStmt = stmt* "}"
+static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
+{
+	// unidirectional linked list
+	struct AstNode head = {};
+	struct AstNode *cur = &head;
+	// stmt* "}"
+	while (!equal(token, "}")) {
+		cur->next = stmt(&token, token);
+		cur = cur->next;
+	}
+	// mov stmt that in "{}" to parser
+	struct AstNode *node = new_astnode(ND_BLOCK);
+	node->body = head.next;
+	*rest = token->next;
+	return node;
 }
 
 // parse expr
@@ -278,19 +304,15 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 	return NULL;
 }
 
+// parser
+// program = "{" compoundStmt
 struct Function *parse(struct Token *token)
 {
-	struct AstNode head = {};
-	struct AstNode *cur = &head;
-
-	// stmt*
-	while (token->kind != TK_EOF) {
-		cur->next = stmt(&token, token);
-		cur = cur->next;
-	}
+	// "{"
+	token = skip(token, "{");
 
 	struct Function *prog = calloc(1, sizeof(struct Function));
-	prog->body = head.next;
+	prog->body = compoundstmt(&token, token);
 	prog->locals = locals;
 	return prog;
 }

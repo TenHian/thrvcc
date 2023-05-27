@@ -122,6 +122,10 @@ static void gen_expr(struct AstNode *node)
 static void gen_stmt(struct AstNode *node)
 {
 	switch (node->kind) {
+	case ND_BLOCK:
+		for (struct AstNode *nd = node->body; nd; nd = nd->next)
+			gen_stmt(nd);
+		return;
 	case ND_RETURN:
 		gen_expr(node->lhs);
 		// unconditional jump statement, jump to the .L.return segment
@@ -178,11 +182,9 @@ void codegen(struct Function *prog)
 	// offset is the stack usable size
 	printf("  addi sp, sp, -%d\n", prog->stack_size);
 
-	// Iterate through all statements
-	for (struct AstNode *nd = prog->body; nd; nd = nd->next) {
-		gen_stmt(nd);
-		assert(StackDepth == 0);
-	}
+	// Iterate through statements list, gen code
+	gen_stmt(prog->body);
+	assert(StackDepth == 0);
 
 	// epilogue
 	// output return seg label
