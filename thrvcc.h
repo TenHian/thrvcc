@@ -72,6 +72,7 @@ struct Function {
 struct AstNode {
 	enum NodeKind kind;
 	struct AstNode *next; // next node, aka next expr
+	struct Token *tok; // the token type of astnode
 
 	struct AstNode *lhs;
 	struct AstNode *rhs;

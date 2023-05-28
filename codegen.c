@@ -50,7 +50,7 @@ static void gen_addr(struct AstNode *node)
 		printf("  addi a0, fp, %d\n", node->var->offset);
 		return;
 	}
-	error_out("not an lvalue");
+	error_token(node->tok, "not an lvalue");
 }
 
 static void gen_expr(struct AstNode *node)
@@ -138,7 +138,7 @@ static void gen_expr(struct AstNode *node)
 		break;
 	}
 
-	error_out("invalid expression");
+	error_token(node->tok, "invalid expression");
 }
 
 // gen stmt
@@ -232,7 +232,7 @@ static void gen_stmt(struct AstNode *node)
 		break;
 	}
 
-	error_out("invalid statement");
+	error_token(node->tok, "invalid statement");
 }
 
 // cau the offset according to global var list

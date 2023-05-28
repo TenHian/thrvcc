@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <assert.h>
 
 // all var add in this list while parse
 struct Local_Var *locals;
@@ -43,34 +44,37 @@ static struct Local_Var *find_var(struct Token *token)
 	return NULL;
 }
 
-static struct AstNode *new_astnode(enum NodeKind kind)
+static struct AstNode *new_astnode(enum NodeKind kind, struct Token *token)
 {
 	struct AstNode *node = calloc(1, sizeof(struct AstNode));
 	node->kind = kind;
+	node->tok = token;
 	return node;
 }
 
 static struct AstNode *new_unary_tree_node(enum NodeKind kind,
-					   struct AstNode *expr)
+					   struct AstNode *expr,
+					   struct Token *token)
 {
-	struct AstNode *node = new_astnode(kind);
+	struct AstNode *node = new_astnode(kind, token);
 	node->lhs = expr;
 	return node;
 }
 
 static struct AstNode *new_binary_tree_node(enum NodeKind kind,
 					    struct AstNode *lhs,
-					    struct AstNode *rhs)
+					    struct AstNode *rhs,
+					    struct Token *token)
 {
-	struct AstNode *node = new_astnode(kind);
+	struct AstNode *node = new_astnode(kind, token);
 	node->lhs = lhs;
 	node->rhs = rhs;
 	return node;
 }
 
-static struct AstNode *new_num_astnode(int val)
+static struct AstNode *new_num_astnode(int val, struct Token *token)
 {
-	struct AstNode *node = new_astnode(ND_NUM);
+	struct AstNode *node = new_astnode(ND_NUM, token);
 	node->val = val;
 	return node;
 }
@@ -86,9 +90,10 @@ static struct Local_Var *new_lvar(char *name)
 	return var;
 }
 
-static struct AstNode *new_var_astnode(struct Local_Var *var)
+static struct AstNode *new_var_astnode(struct Local_Var *var,
+				       struct Token *token)
 {
-	struct AstNode *node = new_astnode(ND_VAR);
+	struct AstNode *node = new_astnode(ND_VAR, token);
 	node->var = var;
 	return node;
 }
@@ -104,14 +109,14 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 {
 	// "return" expr ";"
 	if (equal(token, "return")) {
-		struct AstNode *node = new_unary_tree_node(
-			ND_RETURN, expr(&token, token->next));
+		struct AstNode *node = new_astnode(ND_RETURN, token);
+		node->lhs = expr(&token, token->next);
 		*rest = skip(token, ";");
 		return node;
 	}
 	// "if" "(" expr ")" stmt ("else" stmt)?
 	if (equal(token, "if")) {
-		struct AstNode *node = new_astnode(ND_IF);
+		struct AstNode *node = new_astnode(ND_IF, token);
 		// conditionial stmt
 		token = skip(token->next, "(");
 		node->condition = expr(&token, token);
@@ -126,7 +131,7 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 	}
 	// "for" "(" exprStmt expr? ";" expr? ")" stmt
 	if (equal(token, "for")) {
-		struct AstNode *node = new_astnode(ND_FOR);
+		struct AstNode *node = new_astnode(ND_FOR, token);
 		// "("
 		token = skip(token->next, "(");
 
@@ -151,7 +156,7 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 	}
 	// "while" "(" expr ")" stmt
 	if (equal(token, "while")) {
-		struct AstNode *node = new_astnode(ND_FOR);
+		struct AstNode *node = new_astnode(ND_FOR, token);
 		// "("
 		token = skip(token->next, "(");
 		// expr
@@ -174,6 +179,7 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 // compoundStmt = stmt* "}"
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 {
+	struct AstNode *node = new_astnode(ND_BLOCK, token);
 	// unidirectional linked list
 	struct AstNode head = {};
 	struct AstNode *cur = &head;
@@ -183,7 +189,6 @@ static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 		cur = cur->next;
 	}
 	// mov stmt that in "{}" to parser
-	struct AstNode *node = new_astnode(ND_BLOCK);
 	node->body = head.next;
 	*rest = token->next;
 	return node;
@@ -196,11 +201,11 @@ static struct AstNode *exprstmt(struct Token **rest, struct Token *token)
 	// ";"
 	if (equal(token, ";")) {
 		*rest = token->next;
-		return new_astnode(ND_BLOCK);
+		return new_astnode(ND_BLOCK, token);
 	}
 	// expr ";"
-	struct AstNode *node =
-		new_unary_tree_node(ND_EXPR_STMT, expr(&token, token));
+	struct AstNode *node = new_astnode(ND_EXPR_STMT, token);
+	node->lhs = expr(&token, token);
 	*rest = skip(token, ";");
 	return node;
 }
@@ -219,8 +224,9 @@ static struct AstNode *assign(struct Token **rest, struct Token *token)
 	// there may be recursive assignments, such as a=b=1
 	// ("=" assign)?
 	if (equal(token, "="))
-		node = new_binary_tree_node(ND_ASSIGN, node,
-					    assign(&token, token->next));
+		return node = new_binary_tree_node(ND_ASSIGN, node,
+						   assign(rest, token->next),
+						   token);
 	*rest = token;
 	return node;
 }
@@ -233,16 +239,19 @@ static struct AstNode *equality(struct Token **rest, struct Token *token)
 
 	// ("==" relational | "!=" relational)*
 	while (true) {
+		struct Token *start = token;
 		// "==" relational
 		if (equal(token, "==")) {
 			node = new_binary_tree_node(
-				ND_EQ, node, relational(&token, token->next));
+				ND_EQ, node, relational(&token, token->next),
+				start);
 			continue;
 		}
 		// "!=" relational
 		if (equal(token, "!=")) {
 			node = new_binary_tree_node(
-				ND_NE, node, relational(&token, token->next));
+				ND_NE, node, relational(&token, token->next),
+				start);
 			continue;
 		}
 
@@ -259,28 +268,29 @@ static struct AstNode *relational(struct Token **rest, struct Token *token)
 
 	// ("<" add | "<=" add | ">" add | ">=" add)*
 	while (true) {
+		struct Token *start = token;
 		// "<" add
 		if (equal(token, "<")) {
-			node = new_binary_tree_node(ND_LT, node,
-						    add(&token, token->next));
+			node = new_binary_tree_node(
+				ND_LT, node, add(&token, token->next), start);
 			continue;
 		}
 		// "<=" add
 		if (equal(token, "<=")) {
-			node = new_binary_tree_node(ND_LE, node,
-						    add(&token, token->next));
+			node = new_binary_tree_node(
+				ND_LE, node, add(&token, token->next), start);
 			continue;
 		}
 		// ">" add, X>Y equal Y<X
 		if (equal(token, ">")) {
 			node = new_binary_tree_node(
-				ND_LT, add(&token, token->next), node);
+				ND_LT, add(&token, token->next), node, start);
 			continue;
 		}
 		// ">=" add
 		if (equal(token, ">=")) {
 			node = new_binary_tree_node(
-				ND_LE, add(&token, token->next), node);
+				ND_LE, add(&token, token->next), node, start);
 			continue;
 		}
 
@@ -295,14 +305,15 @@ static struct AstNode *add(struct Token **rest, struct Token *token)
 	struct AstNode *node = mul(&token, token);
 
 	while (true) {
+		struct Token *start = token;
 		if (equal(token, "+")) {
-			node = new_binary_tree_node(ND_ADD, node,
-						    mul(&token, token->next));
+			node = new_binary_tree_node(
+				ND_ADD, node, mul(&token, token->next), start);
 			continue;
 		}
 		if (equal(token, "-")) {
-			node = new_binary_tree_node(ND_SUB, node,
-						    mul(&token, token->next));
+			node = new_binary_tree_node(
+				ND_SUB, node, mul(&token, token->next), start);
 			continue;
 		}
 		*rest = token;
@@ -316,14 +327,17 @@ static struct AstNode *mul(struct Token **rest, struct Token *token)
 	struct AstNode *node = unary(&token, token);
 
 	while (true) {
+		struct Token *start = token;
 		if (equal(token, "*")) {
 			node = new_binary_tree_node(ND_MUL, node,
-						    unary(&token, token->next));
+						    unary(&token, token->next),
+						    start);
 			continue;
 		}
 		if (equal(token, "/")) {
 			node = new_binary_tree_node(ND_DIV, node,
-						    unary(&token, token->next));
+						    unary(&token, token->next),
+						    start);
 			continue;
 		}
 
@@ -337,7 +351,8 @@ static struct AstNode *unary(struct Token **rest, struct Token *token)
 	if (equal(token, "+"))
 		return unary(rest, token->next);
 	if (equal(token, "-"))
-		return new_unary_tree_node(ND_NEG, unary(rest, token->next));
+		return new_unary_tree_node(ND_NEG, unary(rest, token->next),
+					   token);
 
 	return primary(rest, token);
 }
@@ -359,11 +374,11 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 		if (!var)
 			var = new_lvar(strndup(token->location, token->len));
 		*rest = token->next;
-		return new_var_astnode(var);
+		return new_var_astnode(var, token);
 	}
 	// num
 	if (token->kind == TK_NUM) {
-		struct AstNode *node = new_num_astnode(token->val);
+		struct AstNode *node = new_num_astnode(token->val, token);
 		*rest = token->next;
 		return node;
 	}
