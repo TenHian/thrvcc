@@ -1,5 +1,6 @@
 #include "thrvcc.h"
 #include <assert.h>
+#include <time.h>
 
 // all var add in this list while parse
 struct Local_Var *locals;
@@ -187,6 +188,8 @@ static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 	while (!equal(token, "}")) {
 		cur->next = stmt(&token, token);
 		cur = cur->next;
+		// add var kind to nodes, after constructed AST
+		add_type(cur);
 	}
 	// mov stmt that in "{}" to parser
 	node->body = head.next;
@@ -299,6 +302,66 @@ static struct AstNode *relational(struct Token **rest, struct Token *token)
 	}
 }
 
+// parse various add
+static struct AstNode *new_add(struct AstNode *lhs, struct AstNode *rhs,
+			       struct Token *token)
+{
+	// add type for both left side and right side
+	add_type(lhs);
+	add_type(rhs);
+	// num + num
+	if (is_integer(lhs->type) && is_integer(rhs->type))
+		return new_binary_tree_node(ND_ADD, lhs, rhs, token);
+	// if "ptr + ptr", error
+	if (lhs->type->base && rhs->type->base)
+		error_token(token, "invalid operands");
+	// turn "num + ptr" into "ptr + num"
+	if (!lhs->type->base && rhs->type->base) {
+		struct AstNode *tmp = lhs;
+		lhs = rhs;
+		rhs = tmp;
+	}
+	// ptr + num
+	// pointer additon, ptr+1, the 1 in here is not a char,
+	// is 1 item's space, so, need to x8
+	rhs = new_binary_tree_node(ND_MUL, rhs, new_num_astnode(8, token),
+				   token);
+	return new_binary_tree_node(ND_ADD, lhs, rhs, token);
+}
+
+// parse various sub
+static struct AstNode *new_sub(struct AstNode *lhs, struct AstNode *rhs,
+			       struct Token *token)
+{
+	add_type(lhs);
+	add_type(rhs);
+
+	// num - num
+	if (is_integer(lhs->type) && is_integer(rhs->type))
+		return new_binary_tree_node(ND_SUB, lhs, rhs, token);
+	// ptr - num
+	if (lhs->type->base && is_integer(rhs->type)) {
+		rhs = new_binary_tree_node(ND_MUL, rhs,
+					   new_num_astnode(8, token), token);
+		add_type(rhs);
+		struct AstNode *node =
+			new_binary_tree_node(ND_SUB, lhs, rhs, token);
+		// node type is pointer
+		node->type = lhs->type;
+		return node;
+	}
+	// ptr - ptr, return how many items between 2 pointers
+	if (lhs->type->base && rhs->type->base) {
+		struct AstNode *node =
+			new_binary_tree_node(ND_SUB, lhs, rhs, token);
+		node->type = TyInt;
+		return new_binary_tree_node(ND_DIV, node,
+					    new_num_astnode(8, token), token);
+	}
+	error_token(token, "invalid operands");
+	return NULL;
+}
+
 // expr = mul ("+" mul | "-" mul)*
 static struct AstNode *add(struct Token **rest, struct Token *token)
 {
@@ -307,13 +370,11 @@ static struct AstNode *add(struct Token **rest, struct Token *token)
 	while (true) {
 		struct Token *start = token;
 		if (equal(token, "+")) {
-			node = new_binary_tree_node(
-				ND_ADD, node, mul(&token, token->next), start);
+			node = new_add(node, mul(&token, token->next), start);
 			continue;
 		}
 		if (equal(token, "-")) {
-			node = new_binary_tree_node(
-				ND_SUB, node, mul(&token, token->next), start);
+			node = new_sub(node, mul(&token, token->next), start);
 			continue;
 		}
 		*rest = token;

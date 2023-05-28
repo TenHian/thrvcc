@@ -19,24 +19,6 @@ enum TokenKind {
 	TK_EOF,
 };
 
-struct Token {
-	enum TokenKind kind;
-	struct Token *next;
-	int val;
-	char *location;
-	int len;
-};
-
-void error_out(char *fmt, ...);
-void verror_at(char *location, char *fmt, va_list va);
-void error_at(char *location, char *fmt, ...);
-void error_token(struct Token *token, char *fmt, ...);
-// token recognition
-bool equal(struct Token *token, char *str);
-struct Token *skip(struct Token *token, char *str);
-// Lexical analysis
-struct Token *lexer(char *formula);
-
 enum NodeKind {
 	// Arithmetic Operators
 	ND_ADD,
@@ -64,6 +46,24 @@ enum NodeKind {
 	ND_EXPR_STMT, // express statement
 };
 
+enum TypeKind {
+	TY_INT, // integer
+	TY_PTR, // pointer
+};
+
+struct Token {
+	enum TokenKind kind;
+	struct Token *next;
+	int val;
+	char *location;
+	int len;
+};
+
+struct Type {
+	enum TypeKind kind; // kind
+	struct Type *base; // the kind pointed to
+};
+
 struct Local_Var {
 	struct Local_Var *next; // point to next local_var
 	char *name; // local_var name
@@ -80,6 +80,7 @@ struct AstNode {
 	enum NodeKind kind;
 	struct AstNode *next; // next node, aka next expr
 	struct Token *tok; // the token type of astnode
+	struct Type *type; // the var type in node
 
 	struct AstNode *lhs;
 	struct AstNode *rhs;
@@ -98,6 +99,21 @@ struct AstNode {
 	int val;
 };
 
-struct Function *parse(struct Token *token);
+extern struct Type *TyInt;
 
+void error_out(char *fmt, ...);
+void verror_at(char *location, char *fmt, va_list va);
+void error_at(char *location, char *fmt, ...);
+void error_token(struct Token *token, char *fmt, ...);
+// token recognition
+bool equal(struct Token *token, char *str);
+struct Token *skip(struct Token *token, char *str);
+bool is_integer(struct Type *type);
+// add variable kind to all nodes
+void add_type(struct AstNode *node);
+// Lexical analysis
+struct Token *lexer(char *formula);
+// Grammatical analysis
+struct Function *parse(struct Token *token);
+// Code Generation
 void codegen(struct Function *prog);
