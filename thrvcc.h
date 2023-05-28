@@ -38,16 +38,23 @@ struct Token *skip(struct Token *token, char *str);
 struct Token *lexer(char *formula);
 
 enum NodeKind {
+	// Arithmetic Operators
 	ND_ADD,
 	ND_SUB,
 	ND_DIV,
 	ND_MUL,
 	ND_NEG,
+	// Relational Operators
 	ND_EQ, // ==
 	ND_NE, // !=
 	ND_LT, // <
 	ND_LE, // <=
+	// Assignment Operators
 	ND_ASSIGN,
+	// Pointer Operators
+	ND_ADDR, // get address
+	ND_DEREF, // dereference
+
 	ND_RETURN, // return
 	ND_IF, // if
 	ND_FOR, // for or while

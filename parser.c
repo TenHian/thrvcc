@@ -19,7 +19,7 @@ struct Local_Var *locals;
 // relational = add ("<" | "<=" | ">" | ">=")
 // add = mul ("+" | "-")
 // mul = unary ("*" | "/")
-// unary = ("+" | "-") | primary
+// unary = ("+" | "-" | "*" | "&") unary | primary
 // primary = "(" expr ")" | ident |num
 
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
@@ -346,12 +346,20 @@ static struct AstNode *mul(struct Token **rest, struct Token *token)
 	}
 }
 
+// parse unary operators
+// unary = ("+" | "-" | "*" | "&") unary | primary
 static struct AstNode *unary(struct Token **rest, struct Token *token)
 {
 	if (equal(token, "+"))
 		return unary(rest, token->next);
 	if (equal(token, "-"))
 		return new_unary_tree_node(ND_NEG, unary(rest, token->next),
+					   token);
+	if (equal(token, "&"))
+		return new_unary_tree_node(ND_ADDR, unary(rest, token->next),
+					   token);
+	if (equal(token, "*"))
+		return new_unary_tree_node(ND_DEREF, unary(rest, token->next),
 					   token);
 
 	return primary(rest, token);

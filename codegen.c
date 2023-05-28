@@ -1,7 +1,11 @@
 #include "thrvcc.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <wchar.h>
 
 static int StackDepth;
+
+static void gen_expr(struct AstNode *node);
 
 // code block count
 static int count(void)
@@ -43,12 +47,18 @@ static int align_to(int N, int align)
 // if error, means node not in menory
 static void gen_addr(struct AstNode *node)
 {
-	if (node->kind == ND_VAR) {
+	switch (node->kind) {
+	case ND_VAR:
 		// offset fp
 		printf("  # get varable %s's address in stack as %d(fp)\n",
 		       node->var->name, node->var->offset);
 		printf("  addi a0, fp, %d\n", node->var->offset);
 		return;
+	case ND_DEREF:
+		gen_expr(node->lhs);
+		return;
+	default:
+		break;
 	}
 	error_token(node->tok, "not an lvalue");
 }
@@ -69,6 +79,14 @@ static void gen_expr(struct AstNode *node)
 		gen_addr(node);
 		printf("  # read the address that stored in a0, then load it's value into a0\n");
 		printf("  ld a0, 0(a0)\n");
+		return;
+	case ND_DEREF:
+		gen_expr(node->lhs);
+		printf("  # read the address that stored in a0, store its val in a0\n");
+		printf("  ld a0, 0(a0)\n");
+		return;
+	case ND_ADDR:
+		gen_addr(node->lhs);
 		return;
 	case ND_ASSIGN:
 		gen_addr(node->lhs);

@@ -110,5 +110,15 @@ assert 3 '{ for (;;) {return 3;} return 5; }'
 echo [16]
 assert 10 '{ i=0; while(i<10) { i=i+1; } return i; }'
 
+# [19] Support unary "&" "*" pointer operators
+echo [19]
+assert 3 '{ x=3; return *&x; }'
+assert 3 '{ x=3; y=&x; z=&y; return **z; }'
+assert 5 '{ x=3; y=5; return *(&x+8); }'
+assert 3 '{ x=3; y=5; return *(&y-8); }'
+assert 5 '{ x=3; y=&x; *y=5; return x; }'
+assert 7 '{ x=3; y=5; *(&x+8)=7; return y; }'
+assert 7 '{ x=3; y=5; *(&y-8)=7; return x; }'
+
 # if all fine, echo OK
 echo OK
