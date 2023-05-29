@@ -62,11 +62,13 @@ struct Token {
 struct Type {
 	enum TypeKind kind; // kind
 	struct Type *base; // the kind pointed to
+	struct Token *name; // variable name
 };
 
 struct Local_Var {
 	struct Local_Var *next; // point to next local_var
 	char *name; // local_var name
+	struct Type *type; // type
 	int offset; // register fp offset
 };
 
@@ -108,7 +110,9 @@ void error_token(struct Token *token, char *fmt, ...);
 // token recognition
 bool equal(struct Token *token, char *str);
 struct Token *skip(struct Token *token, char *str);
+bool consume(struct Token **rest, struct Token *token, char *str);
 bool is_integer(struct Type *type);
+struct Type *pointer_to(struct Type *base);
 // add variable kind to all nodes
 void add_type(struct AstNode *node);
 // Lexical analysis

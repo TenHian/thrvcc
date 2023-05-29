@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <stdbool.h>
 
 static char *InputArgv; // reg the argv[1]
 
@@ -53,6 +54,19 @@ struct Token *skip(struct Token *token, char *str)
 	return token->next;
 }
 
+// consume the token
+bool consume(struct Token **rest, struct Token *token, char *str)
+{
+	// exist
+	if (equal(token, str)) {
+		*rest = token->next;
+		return true;
+	}
+	// not exist
+	*rest = token;
+	return false;
+}
+
 int get_number(struct Token *token)
 {
 	if (token->kind != TK_NUM)
@@ -103,7 +117,8 @@ static int read_punct(char *op_str)
 static bool is_keyword(struct Token *token)
 {
 	// keyword list
-	static char *KeyWords[] = { "return", "if", "else", "for", "while" };
+	static char *KeyWords[] = { "return", "if",    "else",
+				    "for",    "while", "int" };
 
 	for (int i = 0; i < sizeof(KeyWords) / sizeof(*KeyWords); ++i) {
 		if (equal(token, KeyWords[i]))

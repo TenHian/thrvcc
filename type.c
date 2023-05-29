@@ -45,18 +45,19 @@ void add_type(struct AstNode *node)
 	case ND_NE:
 	case ND_LT:
 	case ND_LE:
-	case ND_VAR:
 	case ND_NUM:
 		node->type = TyInt;
+		return;
+	case ND_VAR:
+		node->type = node->var->type;
 		return;
 	case ND_ADDR:
 		node->type = pointer_to(node->lhs->type);
 		return;
 	case ND_DEREF:
-		if (node->lhs->type->kind == TY_PTR)
-			node->type = node->lhs->type->base;
-		else
-			node->type = TyInt;
+		if (node->lhs->type->kind != TY_PTR)
+			error_token(node->tok, "invalid pointer dereference");
+		node->type = node->lhs->type->base;
 		return;
 	default:
 		break;

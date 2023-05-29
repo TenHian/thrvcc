@@ -1,12 +1,17 @@
 #include "thrvcc.h"
 #include <assert.h>
+#include <string.h>
 #include <time.h>
 
 // all var add in this list while parse
 struct Local_Var *locals;
 
 // program = "{" compoundStmt
-// compoundStmt = stmt* "}"
+// compoundStmt = (declaration | stmt)* "}"
+// declaration =
+// 	declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
+// declspec = "int"
+// declarator = "*"* ident
 // stmt = "return" expr ";"
 //      | "if" "(" expr ")" stmt ("else" stmt)?
 //      | "for" "(" exprStmt expr? ";" expr? ")" stmt
@@ -24,6 +29,7 @@ struct Local_Var *locals;
 // primary = "(" expr ")" | ident |num
 
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
+static struct AstNode *declaration(struct Token **rest, struct Token *token);
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token);
 static struct AstNode *assign(struct Token **rest, struct Token *token);
@@ -80,22 +86,102 @@ static struct AstNode *new_num_astnode(int val, struct Token *token)
 	return node;
 }
 
+static struct AstNode *new_var_astnode(struct Local_Var *var,
+				       struct Token *token)
+{
+	struct AstNode *node = new_astnode(ND_VAR, token);
+	node->var = var;
+	return node;
+}
+
 // add a var into global var list
-static struct Local_Var *new_lvar(char *name)
+static struct Local_Var *new_lvar(char *name, struct Type *type)
 {
 	struct Local_Var *var = calloc(1, sizeof(struct Local_Var));
 	var->name = name;
+	var->type = type;
 	// insert into head
 	var->next = locals;
 	locals = var;
 	return var;
 }
 
-static struct AstNode *new_var_astnode(struct Local_Var *var,
-				       struct Token *token)
+// get identifier
+static char *get_ident(struct Token *token)
 {
-	struct AstNode *node = new_astnode(ND_VAR, token);
-	node->var = var;
+	if (token->kind != TK_IDENT)
+		error_token(token, "expected an identifier");
+	return strndup(token->location, token->len);
+}
+
+// declspec = "int"
+// declarator specifier
+static struct Type *declspec(struct Token **rest, struct Token *token)
+{
+	*rest = skip(token, "int");
+	return TyInt;
+}
+
+// declarator = "*"* ident
+static struct Type *declarator(struct Token **rest, struct Token *token,
+			       struct Type *type)
+{
+	// "*"*
+	// construct all (multiple) pointers
+	while (consume(&token, token, "*"))
+		type = pointer_to(type);
+
+	if (token->kind != TK_IDENT)
+		error_token(token, "expected a variable name");
+
+	type->name = token;
+	*rest = token->next;
+	return type;
+}
+
+// declaration =
+//    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
+static struct AstNode *declaration(struct Token **rest, struct Token *token)
+{
+	// declspec
+	// base type
+	struct Type *base_type = declspec(&token, token);
+
+	struct AstNode head = {};
+	struct AstNode *cur = &head;
+	// count the var declaration times
+	int decl_count = 0;
+
+	// (declarator ("=" expr)? ("," declarator ("=" expr)?)*)?
+	while (!equal(token, ";")) {
+		// the first var not have to match ","
+		if (decl_count++ > 0)
+			token = skip(token, ",");
+
+		// declarator
+		// declare the var-type that got, include var name
+		struct Type *type = declarator(&token, token, base_type);
+		struct Local_Var *var = new_lvar(get_ident(type->name), type);
+
+		// if not exist "=", its var declaration, no need to gen AstNode,
+		// already stored in locals.
+		if (!equal(token, "="))
+			continue;
+
+		// parse tokens after "="
+		struct AstNode *lhs = new_var_astnode(var, type->name);
+		// parsing recursive assignment statements
+		struct AstNode *rhs = assign(&token, token->next);
+		struct AstNode *node =
+			new_binary_tree_node(ND_ASSIGN, lhs, rhs, token);
+		// stored it in expr stmt
+		cur->next = new_unary_tree_node(ND_EXPR_STMT, node, token);
+		cur = cur->next;
+	}
+	// store all expr stmt in code block
+	struct AstNode *node = new_astnode(ND_BLOCK, token);
+	node->body = head.next;
+	*rest = token->next;
 	return node;
 }
 
@@ -177,16 +263,21 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 }
 
 // parse compound stmt
-// compoundStmt = stmt* "}"
+// compoundStmt = (declaration | stmt)* "}"
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 {
 	struct AstNode *node = new_astnode(ND_BLOCK, token);
 	// unidirectional linked list
 	struct AstNode head = {};
 	struct AstNode *cur = &head;
-	// stmt* "}"
+	// (declaration | stmt)* "}"
 	while (!equal(token, "}")) {
-		cur->next = stmt(&token, token);
+		// declaration
+		if (equal(token, "int"))
+			cur->next = declaration(&token, token);
+		// stmt
+		else
+			cur->next = stmt(&token, token);
 		cur = cur->next;
 		// add var kind to nodes, after constructed AST
 		add_type(cur);
@@ -441,7 +532,7 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 		struct Local_Var *var = find_var(token);
 		// if var not exist, creat a new var in global var list
 		if (!var)
-			var = new_lvar(strndup(token->location, token->len));
+			error_token(token, "undefined variable");
 		*rest = token->next;
 		return new_var_astnode(var, token);
 	}
