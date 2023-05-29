@@ -46,6 +46,7 @@ void add_type(struct AstNode *node)
 	case ND_LT:
 	case ND_LE:
 	case ND_NUM:
+	case ND_FUNCALL:
 		node->type = TyInt;
 		return;
 	case ND_VAR:

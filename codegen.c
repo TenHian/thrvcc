@@ -96,6 +96,10 @@ static void gen_expr(struct AstNode *node)
 		printf("  # wirte the value of a0 into the address that stored by a1\n");
 		printf("  sd a0, 0(a1)\n");
 		return;
+	case ND_FUNCALL:
+		printf("\n  # func call%s\n", node->func_name);
+		printf("  call %s\n", node->func_name);
+		return;
 	default:
 		break;
 	}
@@ -279,17 +283,22 @@ void codegen(struct Function *prog)
 
 	// stack layout
 	//-------------------------------// sp
+	//              ra
+	//-------------------------------// ra = sp-8
 	//              fp
-	//-------------------------------// fp = sp-8
+	//-------------------------------// fp = sp-16
 	//              var
-	//-------------------------------// sp = sp-8-StackSize
+	//-------------------------------// sp = sp-16-StackSize
 	//          express cau
 	//-------------------------------//
 
 	// prologue
+	// push ra, store val of ra
+	printf("  # push ra, store val of ra");
+	printf("  addi sp, sp, -16\n");
+	printf("  sd ra, 8(sp)\n");
 	// push fp, store val of fp
 	printf("  # Stack frame protection\n");
-	printf("  addi sp, sp, -8\n");
 	printf("  sd fp, 0(sp)\n");
 	// write sp into fp
 	printf("  mv fp, sp\n");
@@ -313,7 +322,9 @@ void codegen(struct Function *prog)
 	printf("  mv sp, fp\n");
 	// pop fp, recover fp
 	printf("  ld fp, 0(sp)\n");
-	printf("  addi sp, sp, 8\n");
+	// pop ra, recover ra
+	printf("  ld ra, 8(sp)\n");
+	printf("  addi sp, sp, 16\n");
 
 	printf("  ret\n");
 }

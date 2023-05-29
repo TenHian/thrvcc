@@ -1,11 +1,17 @@
 #!/bin/bash
 
+# cat <<EOF | riscv64-elf-gcc -xc -c -o tmp2.o -
+cat <<EOF | riscv64-elf-gcc -xc -c -o tmp2.o -
+int ret3() { return 3; }
+int ret5() { return 5; }
+EOF
+
 assert() {
   expected="$1"
   input="$2"
 
   ./thrvcc "$input" > tmp.s || exit
-  riscv64-elf-gcc -static -o tmp tmp.s
+  riscv64-elf-gcc -static -o tmp tmp.s tmp2.o
   qemu-riscv64 tmp
   actual="$?"
 
@@ -127,6 +133,12 @@ assert 7 '{ int x=3; int y=5; *(&x+1)=7; return y; }'
 echo [21]
 assert 8 '{ int x, y; x=3; y=5; return x+y; }'
 assert 8 '{ int x=3, y=5; return x+y; }'
+
+# [22] Support for zero-parameter function calls
+echo [22]
+assert 3 '{ return ret3(); }'
+assert 5 '{ return ret5(); }'
+assert 8 '{ return ret3()+ret5(); }'
 
 # if all fine, echo OK
 echo OK

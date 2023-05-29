@@ -41,6 +41,7 @@ enum NodeKind {
 	ND_IF, // if
 	ND_FOR, // for or while
 	ND_BLOCK, // code block
+	ND_FUNCALL, // Function call
 	ND_VAR, // variable
 	ND_NUM,
 	ND_EXPR_STMT, // express statement
@@ -96,6 +97,9 @@ struct AstNode {
 
 	// code block
 	struct AstNode *body;
+
+	// func call
+	char *func_name; // func name
 
 	struct Local_Var *var; // string that store var type
 	int val;

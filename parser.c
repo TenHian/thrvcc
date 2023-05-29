@@ -26,7 +26,8 @@ struct Local_Var *locals;
 // add = mul ("+" | "-")
 // mul = unary ("*" | "/")
 // unary = ("+" | "-" | "*" | "&") unary | primary
-// primary = "(" expr ")" | ident |num
+// primary = "(" expr ")" | ident args? | num
+// args = "(" ")"
 
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
 static struct AstNode *declaration(struct Token **rest, struct Token *token);
@@ -518,6 +519,8 @@ static struct AstNode *unary(struct Token **rest, struct Token *token)
 }
 
 // parse "(" ")" | num | variables
+// primary = "(" expr ")" | ident args?｜ num
+// args = "(" ")"
 static struct AstNode *primary(struct Token **rest, struct Token *token)
 {
 	// "(" expr ")"
@@ -526,8 +529,19 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 		*rest = skip(token, ")");
 		return node;
 	}
-	// ident
+	// ident args?
 	if (token->kind == TK_IDENT) {
+		// func call
+		// args = "(" ")"
+		if (equal(token->next, "(")) {
+			struct AstNode *node = new_astnode(ND_FUNCALL, token);
+			// ident
+			node->func_name = strndup(token->location, token->len);
+			*rest = skip(token->next->next, ")");
+			return node;
+		}
+
+		// ident
 		// find var
 		struct Local_Var *var = find_var(token);
 		// if var not exist, creat a new var in global var list
