@@ -100,6 +100,7 @@ struct AstNode {
 
 	// func call
 	char *func_name; // func name
+	struct AstNode *args; // func args
 
 	struct Local_Var *var; // string that store var type
 	int val;

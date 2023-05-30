@@ -5,6 +5,9 @@
 
 static int StackDepth;
 
+// the registers that used to store func args
+static char *args_reg[] = { "a0", "a1", "a2", "a3", "a4", "a5" };
+
 static void gen_expr(struct AstNode *node);
 
 // code block count
@@ -96,10 +99,24 @@ static void gen_expr(struct AstNode *node)
 		printf("  # wirte the value of a0 into the address that stored by a1\n");
 		printf("  sd a0, 0(a1)\n");
 		return;
-	case ND_FUNCALL:
-		printf("\n  # func call%s\n", node->func_name);
+	case ND_FUNCALL: {
+		// args count
+		int args_count = 0;
+		// cau all args' value, push stack forward
+		for (struct AstNode *arg = node->args; arg; arg = arg->next) {
+			gen_expr(arg);
+			push();
+			args_count++;
+		}
+		// pop stack, a0->arg1, a1->arg2
+		for (int i = args_count - 1; i >= 0; i--)
+			pop(args_reg[i]);
+
+		// func call
+		printf("  # func call %s\n", node->func_name);
 		printf("  call %s\n", node->func_name);
 		return;
+	}
 	default:
 		break;
 	}

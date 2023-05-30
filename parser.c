@@ -26,8 +26,9 @@ struct Local_Var *locals;
 // add = mul ("+" | "-")
 // mul = unary ("*" | "/")
 // unary = ("+" | "-" | "*" | "&") unary | primary
-// primary = "(" expr ")" | ident args? | num
-// args = "(" ")"
+// primary = "(" expr ")" | ident func-args? | num
+
+// funcall = ident "(" (assign ("," assign)*)? ")"
 
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
 static struct AstNode *declaration(struct Token **rest, struct Token *token);
@@ -518,9 +519,36 @@ static struct AstNode *unary(struct Token **rest, struct Token *token)
 	return primary(rest, token);
 }
 
+// parse func call
+// funcall = ident "(" (assign ("," assign)*)? ")"
+static struct AstNode *func_call(struct Token **rest, struct Token *token)
+{
+	struct Token *start = token;
+	token = token->next->next;
+
+	struct AstNode head = {};
+	struct AstNode *cur = &head;
+
+	while (!equal(token, ")")) {
+		if (cur != &head)
+			token = skip(token, ",");
+		// assign
+		cur->next = assign(&token, token);
+		cur = cur->next;
+	}
+
+	*rest = skip(token, ")");
+
+	struct AstNode *node = new_astnode(ND_FUNCALL, start);
+
+	// ident
+	node->func_name = strndup(start->location, start->len);
+	node->args = head.next;
+	return node;
+}
+
 // parse "(" ")" | num | variables
-// primary = "(" expr ")" | ident args?｜ num
-// args = "(" ")"
+// primary = "(" expr ")" | ident func-args? | num
 static struct AstNode *primary(struct Token **rest, struct Token *token)
 {
 	// "(" expr ")"
@@ -532,14 +560,8 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 	// ident args?
 	if (token->kind == TK_IDENT) {
 		// func call
-		// args = "(" ")"
-		if (equal(token->next, "(")) {
-			struct AstNode *node = new_astnode(ND_FUNCALL, token);
-			// ident
-			node->func_name = strndup(token->location, token->len);
-			*rest = skip(token->next->next, ")");
-			return node;
-		}
+		if (equal(token->next, "("))
+			return func_call(rest, token);
 
 		// ident
 		// find var
