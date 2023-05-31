@@ -266,7 +266,7 @@ static void gen_stmt(struct AstNode *node)
 			gen_stmt(nd);
 		return;
 	case ND_RETURN:
-		printf("# terurn statement\n");
+		printf("# return statement\n");
 		gen_expr(node->lhs);
 		// unconditional jump statement, jump to the .L.return segment
 		// 'j offset' is an alias instruction for 'jal x0, offset'
@@ -325,7 +325,7 @@ void codegen(struct Function *prog)
 
 		// prologue
 		// push ra, store val of ra
-		printf("  # push ra, store val of ra");
+		printf("  # push ra, store val of ra \n");
 		printf("  addi sp, sp, -16\n");
 		printf("  sd ra, 8(sp)\n");
 		// push fp, store val of fp
@@ -337,6 +337,14 @@ void codegen(struct Function *prog)
 		// offset is the stack usable size
 		printf("  # Allocate stack space\n");
 		printf("  addi sp, sp, -%d\n", prog->stack_size);
+
+		int i_regs = 0;
+		for (struct Local_Var *var = fn->params; var; var = var->next) {
+			printf("  # push reg %s value into %s stack address\n",
+			       ArgsReg[i_regs], var->name);
+			printf("  sd %s, %d(fp)\n", ArgsReg[i_regs++],
+			       var->offset);
+		}
 
 		// Iterate through statements list, gen code
 		printf("\n# =====%s segment body=====\n", fn->name);

@@ -16,7 +16,9 @@ struct Local_Var *Locals;
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = "int"
 // declarator = "*"* ident typeSuffix
-// typeSuffix = ("(" ")")?
+// typeSuffix = ("(" funcParams? ")")?
+// funcParams = param ("," param)*
+// param = declspec declarator
 
 // compoundStmt = (declaration | stmt)* "}"
 // declaration =
@@ -136,14 +138,39 @@ static struct Type *declspec(struct Token **rest, struct Token *token)
 	return TyInt;
 }
 
-// type_suffix = ("(" ")")?
+// type_suffix = ("(" funcParams? ")")?
+// funcParams = param ("," param)*
+// param = declspec declarator
 static struct Type *type_suffix(struct Token **rest, struct Token *token,
 				struct Type *ty)
 {
-	// ("(" ")")?
+	// ("(" funcParams? ")")?
 	if (equal(token, "(")) {
-		*rest = skip(token->next, ")");
-		return func_type(ty);
+		token = token->next;
+
+		// linked list that stored params
+		struct Type head = {};
+		struct Type *cur = &head;
+
+		while (!equal(token, ")")) {
+			// funcParams = param ("," param)*
+			// param = declspec declarator
+			if (cur != &head)
+				token = skip(token, ",");
+			struct Type *base_ty = declspec(&token, token);
+			struct Type *declare_ty =
+				declarator(&token, token, base_ty);
+			// copy to params list
+			cur->next = copy_type(declare_ty);
+			cur = cur->next;
+		}
+
+		// wrap a function node
+		ty = func_type(ty);
+		// pass params
+		ty->params = head.next;
+		*rest = token->next;
+		return ty;
 	}
 	*rest = token;
 	return ty;
@@ -611,6 +638,20 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 	return NULL;
 }
 
+// add params into Locals
+static void create_params_lvars(struct Type *param)
+{
+	if (param) {
+		// Recursive to the lowest of the form parameter
+		// Add the bottom ones to the Locals first,
+		// then add all the subsequent ones to the top one by one,
+		// keeping the same order
+		create_params_lvars(param->next);
+		// add into Locals
+		new_lvar(get_ident(param->name), param);
+	}
+}
+
 // functionDefinition = declspec declarator "{" compoundStmt*
 static struct Function *function(struct Token **rest, struct Token *token)
 {
@@ -624,7 +665,11 @@ static struct Function *function(struct Token **rest, struct Token *token)
 
 	// read ident from paesed type
 	struct Function *fn = calloc(1, sizeof(struct Function));
+	// func name
 	fn->name = get_ident(type->name);
+	// func parameters
+	create_params_lvars(type->params);
+	fn->params = Locals;
 
 	token = skip(token, "{");
 	// func body store AST, Locals store var

@@ -66,11 +66,13 @@ struct Type {
 
 	// pointer
 	struct Type *base; // the kind pointed to
-	// variables
-	struct Token *name; // variable name
+	// type name, like variable name, function name.
+	struct Token *name; // type name
 
 	// function type
 	struct Type *return_type; // function return type
+	struct Type *params; // parameters
+	struct Type *next; // next type
 };
 
 struct Local_Var {
@@ -83,6 +85,7 @@ struct Local_Var {
 struct Function {
 	struct Function *next; // next func
 	char *name; // func name
+	struct Local_Var *params; // parameters
 	struct AstNode *body; // func body
 	struct Local_Var *locals; // local variables
 	int stack_size;
@@ -126,6 +129,8 @@ bool equal(struct Token *token, char *str);
 struct Token *skip(struct Token *token, char *str);
 bool consume(struct Token **rest, struct Token *token, char *str);
 bool is_integer(struct Type *type);
+// copy type
+struct Type *copy_type(struct Type *type);
 struct Type *pointer_to(struct Type *base);
 // add variable kind to all nodes
 void add_type(struct AstNode *node);

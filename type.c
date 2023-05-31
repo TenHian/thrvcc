@@ -8,6 +8,14 @@ bool is_integer(struct Type *type)
 	return type->kind == TY_INT;
 }
 
+// copy type
+struct Type *copy_type(struct Type *type)
+{
+	struct Type *ret = calloc(1, sizeof(struct Type));
+	*ret = *type;
+	return ret;
+}
+
 struct Type *pointer_to(struct Type *base)
 {
 	struct Type *type = calloc(1, sizeof(struct Type));
@@ -39,7 +47,11 @@ void add_type(struct AstNode *node)
 	add_type(node->else_);
 	add_type(node->init);
 	add_type(node->increase);
+	// Iterate through all nodes of the AST to add types
 	for (struct AstNode *nd = node->body; nd; nd = nd->next)
+		add_type(nd);
+	// Iterate through all parameter nodes to add types
+	for (struct AstNode *nd = node->args; nd; nd = nd->next)
 		add_type(nd);
 
 	switch (node->kind) {
