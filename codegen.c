@@ -3,10 +3,19 @@
 #include <stdlib.h>
 #include <wchar.h>
 
+// used to record stack depth
+// used by func:
+//         static void push(void)
+//         static void pop(char *reg)
+//         void codegen(struct Function *prog)
 static int StackDepth;
 
 // the registers that used to store func args
-static char *args_reg[] = { "a0", "a1", "a2", "a3", "a4", "a5" };
+// used by func
+//         static void gen_expr(struct AstNode *node)
+static char *ArgsReg[] = { "a0", "a1", "a2", "a3", "a4", "a5" };
+// current func
+static struct Function *CurFn;
 
 static void gen_expr(struct AstNode *node);
 
@@ -110,7 +119,7 @@ static void gen_expr(struct AstNode *node)
 		}
 		// pop stack, a0->arg1, a1->arg2
 		for (int i = args_count - 1; i >= 0; i--)
-			pop(args_reg[i]);
+			pop(ArgsReg[i]);
 
 		// func call
 		printf("  # func call %s\n", node->func_name);
@@ -261,8 +270,8 @@ static void gen_stmt(struct AstNode *node)
 		gen_expr(node->lhs);
 		// unconditional jump statement, jump to the .L.return segment
 		// 'j offset' is an alias instruction for 'jal x0, offset'
-		printf("  # jump to .L.return segment\n");
-		printf("  j .L.return\n");
+		printf("  # jump to .L.return.%s segment\n", CurFn->name);
+		printf("  j .L.return.%s\n", CurFn->name);
 		return;
 	case ND_EXPR_STMT:
 		gen_expr(node->lhs);
@@ -277,71 +286,77 @@ static void gen_stmt(struct AstNode *node)
 // cau the offset according to global var list
 static void assign_lvar_offsets(struct Function *prog)
 {
-	int offset = 0;
-	// read all var
-	for (struct Local_Var *var = prog->locals; var; var = var->next) {
-		// alloc 8 bits to every var
-		offset += 8;
-		// assign a offset to every var, aka address in stack
-		var->offset = -offset;
+	// calculate the stack space that needed for every func
+	for (struct Function *fn = prog; fn; fn = fn->next) {
+		int offset = 0;
+		// read all var
+		for (struct Local_Var *var = fn->locals; var; var = var->next) {
+			// alloc 8 bits to every var
+			offset += 8;
+			// assign a offset to every var, aka address in stack
+			var->offset = -offset;
+		}
+		// align stack to 16 bits
+		fn->stack_size = align_to(offset, 16);
 	}
-	// align stack to 16 bits
-	prog->stack_size = align_to(offset, 16);
 }
 
 void codegen(struct Function *prog)
 {
 	assign_lvar_offsets(prog);
-	printf("  # define global seg\n");
-	printf("  .globl main\n");
-	printf("\n# =====program start=====\n");
-	printf("# main segment, also as the program entrance segment\n");
-	printf("main:\n");
+	for (struct Function *fn = prog; fn; fn = fn->next) {
+		printf("\n  # define global %s seg\n", fn->name);
+		printf("  .globl %s\n", fn->name);
+		printf("# =====%s start=====\n", fn->name);
+		printf("# %s segment label\n", fn->name);
+		printf("%s:\n", fn->name);
+		CurFn = fn;
 
-	// stack layout
-	//-------------------------------// sp
-	//              ra
-	//-------------------------------// ra = sp-8
-	//              fp
-	//-------------------------------// fp = sp-16
-	//              var
-	//-------------------------------// sp = sp-16-StackSize
-	//          express cau
-	//-------------------------------//
+		// stack layout
+		//-------------------------------// sp
+		//              ra
+		//-------------------------------// ra = sp-8
+		//              fp
+		//-------------------------------// fp = sp-16
+		//              var
+		//-------------------------------// sp = sp-16-StackSize
+		//          express cau
+		//-------------------------------//
 
-	// prologue
-	// push ra, store val of ra
-	printf("  # push ra, store val of ra");
-	printf("  addi sp, sp, -16\n");
-	printf("  sd ra, 8(sp)\n");
-	// push fp, store val of fp
-	printf("  # Stack frame protection\n");
-	printf("  sd fp, 0(sp)\n");
-	// write sp into fp
-	printf("  mv fp, sp\n");
+		// prologue
+		// push ra, store val of ra
+		printf("  # push ra, store val of ra");
+		printf("  addi sp, sp, -16\n");
+		printf("  sd ra, 8(sp)\n");
+		// push fp, store val of fp
+		printf("  # Stack frame protection\n");
+		printf("  sd fp, 0(sp)\n");
+		// write sp into fp
+		printf("  mv fp, sp\n");
 
-	// offset is the stack usable size
-	printf("  # Allocate stack space\n");
-	printf("  addi sp, sp, -%d\n", prog->stack_size);
+		// offset is the stack usable size
+		printf("  # Allocate stack space\n");
+		printf("  addi sp, sp, -%d\n", prog->stack_size);
 
-	// Iterate through statements list, gen code
-	printf("\n# =====program body=====\n");
-	gen_stmt(prog->body);
-	assert(StackDepth == 0);
+		// Iterate through statements list, gen code
+		printf("\n# =====%s segment body=====\n", fn->name);
+		gen_stmt(fn->body);
+		assert(StackDepth == 0);
 
-	// epilogue
-	// output return seg label
-	printf("\n# =====program end=====\n");
-	printf("# return segment label\n");
-	printf(".L.return:\n");
-	// write back fp into sp
-	printf("  # return value, recovering stack frames\n");
-	printf("  mv sp, fp\n");
-	// pop fp, recover fp
-	printf("  ld fp, 0(sp)\n");
-	// pop ra, recover ra
-	printf("  ld ra, 8(sp)\n");
-	printf("  addi sp, sp, 16\n");
+		// epilogue
+		// output return seg label
+		printf("\n# =====%s segment end=====\n", fn->name);
+		printf("# return segment label\n");
+		printf(".L.return.%s:\n", fn->name);
+		// write back fp into sp
+		printf("  # return value, recovering stack frames\n");
+		printf("  mv sp, fp\n");
+		// pop fp, recover fp
+		printf("  ld fp, 0(sp)\n");
+		// pop ra, recover ra
+		printf("  ld ra, 8(sp)\n");
+		printf("  addi sp, sp, 16\n");
 
-	printf("  ret\n");
+		printf("  ret\n");
+	}
 }

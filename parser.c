@@ -1,17 +1,26 @@
 #include "thrvcc.h"
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 // all var add in this list while parse
-struct Local_Var *locals;
+// means Local Variables
+// used by func:
+//         static struct Local_Var *find_var(struct Token *token)
+//         static struct Local_Var *new_lvar(char *name, struct Type *type)
+//         static struct Function *function(struct Token **rest, struct Token *token)
+struct Local_Var *Locals;
 
-// program = "{" compoundStmt
+// program = functionDefinition*
+// functionDefinition = declspec declarator "{" compoundStmt*
+// declspec = "int"
+// declarator = "*"* ident typeSuffix
+// typeSuffix = ("(" ")")?
+
 // compoundStmt = (declaration | stmt)* "}"
 // declaration =
 // 	declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
-// declspec = "int"
-// declarator = "*"* ident
 // stmt = "return" expr ";"
 //      | "if" "(" expr ")" stmt ("else" stmt)?
 //      | "for" "(" exprStmt expr? ";" expr? ")" stmt
@@ -30,6 +39,9 @@ struct Local_Var *locals;
 
 // funcall = ident "(" (assign ("," assign)*)? ")"
 
+static struct Type *declspec(struct Token **rest, struct Token *token);
+static struct Type *declarator(struct Token **rest, struct Token *token,
+			       struct Type *ty);
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
 static struct AstNode *declaration(struct Token **rest, struct Token *token);
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
@@ -46,7 +58,7 @@ static struct AstNode *primary(struct Token **rest, struct Token *token);
 // find a local var by search name
 static struct Local_Var *find_var(struct Token *token)
 {
-	for (struct Local_Var *var = locals; var; var = var->next)
+	for (struct Local_Var *var = Locals; var; var = var->next)
 		if (strlen(var->name) == token->len &&
 		    !strncmp(token->location, var->name, token->len))
 			return var;
@@ -103,8 +115,8 @@ static struct Local_Var *new_lvar(char *name, struct Type *type)
 	var->name = name;
 	var->type = type;
 	// insert into head
-	var->next = locals;
-	locals = var;
+	var->next = Locals;
+	Locals = var;
 	return var;
 }
 
@@ -124,7 +136,20 @@ static struct Type *declspec(struct Token **rest, struct Token *token)
 	return TyInt;
 }
 
-// declarator = "*"* ident
+// type_suffix = ("(" ")")?
+static struct Type *type_suffix(struct Token **rest, struct Token *token,
+				struct Type *ty)
+{
+	// ("(" ")")?
+	if (equal(token, "(")) {
+		*rest = skip(token->next, ")");
+		return func_type(ty);
+	}
+	*rest = token;
+	return ty;
+}
+
+// declarator = "*"* ident type_suffix
 static struct Type *declarator(struct Token **rest, struct Token *token,
 			       struct Type *type)
 {
@@ -136,8 +161,11 @@ static struct Type *declarator(struct Token **rest, struct Token *token,
 	if (token->kind != TK_IDENT)
 		error_token(token, "expected a variable name");
 
+	// type_suffix
+	type = type_suffix(rest, token->next, type);
+	// ident
+	// variable name or func name
 	type->name = token;
-	*rest = token->next;
 	return type;
 }
 
@@ -166,7 +194,7 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token)
 		struct Local_Var *var = new_lvar(get_ident(type->name), type);
 
 		// if not exist "=", its var declaration, no need to gen AstNode,
-		// already stored in locals.
+		// already stored in Locals.
 		if (!equal(token, "="))
 			continue;
 
@@ -583,15 +611,36 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 	return NULL;
 }
 
+// functionDefinition = declspec declarator "{" compoundStmt*
+static struct Function *function(struct Token **rest, struct Token *token)
+{
+	// declspec
+	struct Type *type = declspec(&token, token);
+	// declarator? ident "(" ")"
+	type = declarator(&token, token, type);
+
+	// clean global Locals
+	Locals = NULL;
+
+	// read ident from paesed type
+	struct Function *fn = calloc(1, sizeof(struct Function));
+	fn->name = get_ident(type->name);
+
+	token = skip(token, "{");
+	// func body store AST, Locals store var
+	fn->body = compoundstmt(rest, token);
+	fn->locals = Locals;
+	return fn;
+}
+
 // parser
-// program = "{" compoundStmt
+// program = functionDefinition*
 struct Function *parse(struct Token *token)
 {
-	// "{"
-	token = skip(token, "{");
+	struct Function head = {};
+	struct Function *cur = &head;
 
-	struct Function *prog = calloc(1, sizeof(struct Function));
-	prog->body = compoundstmt(&token, token);
-	prog->locals = locals;
-	return prog;
+	while (token->kind != TK_EOF)
+		cur = cur->next = function(&token, token);
+	return head.next;
 }

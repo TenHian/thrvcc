@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <stdlib.h>
 
 struct Type *TyInt = &(struct Type){ TY_INT };
 
@@ -13,6 +14,15 @@ struct Type *pointer_to(struct Type *base)
 	type->kind = TY_PTR;
 	type->base = base;
 	return type;
+}
+
+// func type, assign return type
+struct Type *func_type(struct Type *return_ty)
+{
+	struct Type *ty = calloc(1, sizeof(struct Type));
+	ty->kind = TY_FUNC;
+	ty->return_type = return_ty;
+	return ty;
 }
 
 // add type for nodes

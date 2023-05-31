@@ -50,6 +50,7 @@ enum NodeKind {
 enum TypeKind {
 	TY_INT, // integer
 	TY_PTR, // pointer
+	TY_FUNC, // function
 };
 
 struct Token {
@@ -62,8 +63,14 @@ struct Token {
 
 struct Type {
 	enum TypeKind kind; // kind
+
+	// pointer
 	struct Type *base; // the kind pointed to
+	// variables
 	struct Token *name; // variable name
+
+	// function type
+	struct Type *return_type; // function return type
 };
 
 struct Local_Var {
@@ -74,6 +81,8 @@ struct Local_Var {
 };
 
 struct Function {
+	struct Function *next; // next func
+	char *name; // func name
 	struct AstNode *body; // func body
 	struct Local_Var *locals; // local variables
 	int stack_size;
@@ -120,6 +129,8 @@ bool is_integer(struct Type *type);
 struct Type *pointer_to(struct Type *base);
 // add variable kind to all nodes
 void add_type(struct AstNode *node);
+// function type
+struct Type *func_type(struct Type *return_ty);
 // Lexical analysis
 struct Token *lexer(char *formula);
 // Grammatical analysis
