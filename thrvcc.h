@@ -51,6 +51,7 @@ enum TypeKind {
 	TY_INT, // integer
 	TY_PTR, // pointer
 	TY_FUNC, // function
+	TY_ARRAY, // array
 };
 
 struct Token {
@@ -63,11 +64,15 @@ struct Token {
 
 struct Type {
 	enum TypeKind kind; // kind
+	int size; // return value of sizeof()
 
 	// pointer
 	struct Type *base; // the kind pointed to
 	// type name, like variable name, function name.
 	struct Token *name; // type name
+
+	// array
+	int array_len; // len of array, array items count
 
 	// function type
 	struct Type *return_type; // function return type
@@ -134,6 +139,8 @@ struct Type *copy_type(struct Type *type);
 struct Type *pointer_to(struct Type *base);
 // add variable kind to all nodes
 void add_type(struct AstNode *node);
+// array type
+struct Type *array_of(struct Type *base, int len);
 // function type
 struct Type *func_type(struct Type *return_ty);
 // Lexical analysis

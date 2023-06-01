@@ -1,7 +1,7 @@
 #include "thrvcc.h"
 #include <stdlib.h>
 
-struct Type *TyInt = &(struct Type){ TY_INT };
+struct Type *TyInt = &(struct Type){ TY_INT, 8 };
 
 bool is_integer(struct Type *type)
 {
@@ -21,6 +21,7 @@ struct Type *pointer_to(struct Type *base)
 	struct Type *type = calloc(1, sizeof(struct Type));
 	type->kind = TY_PTR;
 	type->base = base;
+	type->size = 8;
 	return type;
 }
 
@@ -31,6 +32,18 @@ struct Type *func_type(struct Type *return_ty)
 	ty->kind = TY_FUNC;
 	ty->return_type = return_ty;
 	return ty;
+}
+
+// construct array type, pass (array base type, items count)
+struct Type *array_of(struct Type *base, int len)
+{
+	struct Type *type = calloc(1, sizeof(struct Type));
+	type->kind = TY_ARRAY;
+	// array size = all items size pulse
+	type->size = base->size * len;
+	type->base = base;
+	type->array_len = len;
+	return type;
 }
 
 // add type for nodes
@@ -60,7 +73,13 @@ void add_type(struct AstNode *node)
 	case ND_MUL:
 	case ND_DIV:
 	case ND_NEG:
+		node->type = node->lhs->type;
+		return;
+	// set node type as node->lhs type
+	// lhs coudn't be array node
 	case ND_ASSIGN:
+		if (node->lhs->type->kind == TY_ARRAY)
+			error_token(node->lhs->tok, "not an lvalue");
 		node->type = node->lhs->type;
 		return;
 	case ND_EQ:
@@ -74,11 +93,17 @@ void add_type(struct AstNode *node)
 	case ND_VAR:
 		node->type = node->var->type;
 		return;
-	case ND_ADDR:
-		node->type = pointer_to(node->lhs->type);
+	case ND_ADDR: {
+		struct Type *type = node->lhs->type;
+		// if left side is array, its pointer point to array base type
+		if (type->kind == TY_ARRAY)
+			node->type = pointer_to(type->base);
+		else
+			node->type = pointer_to(type);
 		return;
+	}
 	case ND_DEREF:
-		if (node->lhs->type->kind != TY_PTR)
+		if (!node->lhs->type->base)
 			error_token(node->tok, "invalid pointer dereference");
 		node->type = node->lhs->type->base;
 		return;

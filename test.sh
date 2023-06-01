@@ -164,5 +164,12 @@ assert 1 'int main() { return sub2(4,3); } int sub2(int x, int y) { return x-y; 
 assert 3 'int main() { return getmax(2,3); } int getmax(int x, int y) { if (x>y) return x; else return y; }'
 assert 55 'int main() { return fib(9); } int fib(int x) { if (x<=1) return 1; return fib(x-1) + fib(x-2); }'
 
+# [26] Support for one-dimensional arrays
+echo [26]
+assert 3 'int main() { int x[2]; int *y=&x; *y=3; return *x; }'
+assert 3 'int main() { int x[3]; *x=3; *(x+1)=4; *(x+2)=5; return *x; }'
+assert 4 'int main() { int x[3]; *x=3; *(x+1)=4; *(x+2)=5; return *(x+1); }'
+assert 5 'int main() { int x[3]; *x=3; *(x+1)=4; *(x+2)=5; return *(x+2); }'
+
 # if all fine, echo OK
 echo OK

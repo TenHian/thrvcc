@@ -16,8 +16,8 @@ struct Local_Var *Locals;
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = "int"
 // declarator = "*"* ident typeSuffix
-// typeSuffix = ("(" funcParams? ")")?
-// funcParams = param ("," param)*
+// typeSuffix = "(" funcParams | "[" num "]" | ε
+// funcParams = (param ("," param)*)? ")"
 // param = declspec declarator
 
 // compoundStmt = (declaration | stmt)* "}"
@@ -130,6 +130,14 @@ static char *get_ident(struct Token *token)
 	return strndup(token->location, token->len);
 }
 
+// get number
+static int get_number(struct Token *token)
+{
+	if (token->kind != TK_NUM)
+		error_token(token, "expected a number");
+	return token->val;
+}
+
 // declspec = "int"
 // declarator specifier
 static struct Type *declspec(struct Token **rest, struct Token *token)
@@ -138,39 +146,44 @@ static struct Type *declspec(struct Token **rest, struct Token *token)
 	return TyInt;
 }
 
-// type_suffix = ("(" funcParams? ")")?
-// funcParams = param ("," param)*
+// funcParams = (param ("," param)*)? ")"
 // param = declspec declarator
+static struct Type *func_params(struct Token **rest, struct Token *token,
+				struct Type *type)
+{
+	struct Type head = {};
+	struct Type *cur = &head;
+
+	while (!equal(token, ")")) {
+		// func_params = param ("," param)*
+		// param = declspec declarator
+		if (cur != &head)
+			token = skip(token, ",");
+		struct Type *base_ty = declspec(&token, token);
+		struct Type *declar_ty = declarator(&token, token, base_ty);
+		// copy to parameters list
+		cur->next = copy_type(declar_ty);
+		cur = cur->next;
+	}
+
+	// wrap a func node
+	type = func_type(type);
+	// pass parameters
+	type->params = head.next;
+	*rest = token->next;
+	return type;
+}
+
+// typeSuffix = ("(" funcParams? ")")?
 static struct Type *type_suffix(struct Token **rest, struct Token *token,
 				struct Type *ty)
 {
-	// ("(" funcParams? ")")?
-	if (equal(token, "(")) {
-		token = token->next;
-
-		// linked list that stored params
-		struct Type head = {};
-		struct Type *cur = &head;
-
-		while (!equal(token, ")")) {
-			// funcParams = param ("," param)*
-			// param = declspec declarator
-			if (cur != &head)
-				token = skip(token, ",");
-			struct Type *base_ty = declspec(&token, token);
-			struct Type *declare_ty =
-				declarator(&token, token, base_ty);
-			// copy to params list
-			cur->next = copy_type(declare_ty);
-			cur = cur->next;
-		}
-
-		// wrap a function node
-		ty = func_type(ty);
-		// pass params
-		ty->params = head.next;
-		*rest = token->next;
-		return ty;
+	if (equal(token, "("))
+		return func_params(rest, token->next, ty);
+	if (equal(token, "[")) {
+		int sz = get_number(token->next);
+		*rest = skip(token->next->next, "]");
+		return array_of(ty, sz);
 	}
 	*rest = token;
 	return ty;
@@ -471,9 +484,10 @@ static struct AstNode *new_add(struct AstNode *lhs, struct AstNode *rhs,
 	}
 	// ptr + num
 	// pointer additon, ptr+1, the 1 in here is not a char,
-	// is 1 item's space, so, need to x8
-	rhs = new_binary_tree_node(ND_MUL, rhs, new_num_astnode(8, token),
-				   token);
+	// is 1 item's space, so, need to *size
+	rhs = new_binary_tree_node(
+		ND_MUL, rhs, new_num_astnode(lhs->type->base->size, token),
+		token);
 	return new_binary_tree_node(ND_ADD, lhs, rhs, token);
 }
 
@@ -489,8 +503,9 @@ static struct AstNode *new_sub(struct AstNode *lhs, struct AstNode *rhs,
 		return new_binary_tree_node(ND_SUB, lhs, rhs, token);
 	// ptr - num
 	if (lhs->type->base && is_integer(rhs->type)) {
-		rhs = new_binary_tree_node(ND_MUL, rhs,
-					   new_num_astnode(8, token), token);
+		rhs = new_binary_tree_node(
+			ND_MUL, rhs,
+			new_num_astnode(lhs->type->base->size, token), token);
 		add_type(rhs);
 		struct AstNode *node =
 			new_binary_tree_node(ND_SUB, lhs, rhs, token);
@@ -503,8 +518,9 @@ static struct AstNode *new_sub(struct AstNode *lhs, struct AstNode *rhs,
 		struct AstNode *node =
 			new_binary_tree_node(ND_SUB, lhs, rhs, token);
 		node->type = TyInt;
-		return new_binary_tree_node(ND_DIV, node,
-					    new_num_astnode(8, token), token);
+		return new_binary_tree_node(
+			ND_DIV, node,
+			new_num_astnode(lhs->type->base->size, token), token);
 	}
 	error_token(token, "invalid operands");
 	return NULL;
