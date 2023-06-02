@@ -36,7 +36,8 @@ struct Local_Var *Locals;
 // relational = add ("<" | "<=" | ">" | ">=")
 // add = mul ("+" | "-")
 // mul = unary ("*" | "/")
-// unary = ("+" | "-" | "*" | "&") unary | primary
+// unary = ("+" | "-" | "*" | "&") unary | postfix
+// postfix = primary ("[" expr "]")*
 // primary = "(" expr ")" | ident func-args? | num
 
 // funcall = ident "(" (assign ("," assign)*)? ")"
@@ -55,6 +56,7 @@ static struct AstNode *expr(struct Token **rest, struct Token *token);
 static struct AstNode *add(struct Token **rest, struct Token *token);
 static struct AstNode *mul(struct Token **rest, struct Token *token);
 static struct AstNode *unary(struct Token **rest, struct Token *token);
+static struct AstNode *postfix(struct Token **rest, struct Token *token);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
 
 // find a local var by search name
@@ -573,7 +575,7 @@ static struct AstNode *mul(struct Token **rest, struct Token *token)
 }
 
 // parse unary operators
-// unary = ("+" | "-" | "*" | "&") unary | primary
+// unary = ("+" | "-" | "*" | "&") unary | postfix
 static struct AstNode *unary(struct Token **rest, struct Token *token)
 {
 	if (equal(token, "+"))
@@ -587,8 +589,27 @@ static struct AstNode *unary(struct Token **rest, struct Token *token)
 	if (equal(token, "*"))
 		return new_unary_tree_node(ND_DEREF, unary(rest, token->next),
 					   token);
+	// postfix
+	return postfix(rest, token);
+}
 
-	return primary(rest, token);
+// postfix = primary ("[" expr "]")*
+static struct AstNode *postfix(struct Token **rest, struct Token *token)
+{
+	// primary
+	struct AstNode *node = primary(&token, token);
+
+	// ("[" expr "]")*
+	while (equal(token, "[")) {
+		// x[y] equal to *(x+y)
+		struct Token *start = token;
+		struct AstNode *idx = expr(&token, token->next);
+		token = skip(token, "]");
+		node = new_unary_tree_node(ND_DEREF, new_add(node, idx, start),
+					   start);
+	}
+	*rest = token;
+	return node;
 }
 
 // parse func call
