@@ -38,7 +38,7 @@ struct Local_Var *Locals;
 // mul = unary ("*" | "/")
 // unary = ("+" | "-" | "*" | "&") unary | postfix
 // postfix = primary ("[" expr "]")*
-// primary = "(" expr ")" | ident func-args? | num
+// primary = "(" expr ")" | "sizeof" unary | ident funcArgs? | num
 
 // funcall = ident "(" (assign ("," assign)*)? ")"
 
@@ -641,7 +641,7 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 }
 
 // parse "(" ")" | num | variables
-// primary = "(" expr ")" | ident func-args? | num
+// primary = "(" expr ")" | "sizeof" unary | ident funcArgs? | num
 static struct AstNode *primary(struct Token **rest, struct Token *token)
 {
 	// "(" expr ")"
@@ -649,6 +649,12 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 		struct AstNode *node = expr(&token, token->next);
 		*rest = skip(token, ")");
 		return node;
+	}
+	// "sizeof" unary
+	if (equal(token, "sizeof")) {
+		struct AstNode *node = unary(rest, token->next);
+		add_type(node);
+		return new_num_astnode(node->type->size, token);
 	}
 	// ident args?
 	if (token->kind == TK_IDENT) {
