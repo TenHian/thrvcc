@@ -16,7 +16,7 @@ struct Local_Var *Locals;
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = "int"
 // declarator = "*"* ident typeSuffix
-// typeSuffix = "(" funcParams | "[" num "]" | ε
+// typeSuffix = "(" funcParams | "[" num "]" | typeSuffix | ε
 // funcParams = (param ("," param)*)? ")"
 // param = declspec declarator
 
@@ -182,7 +182,8 @@ static struct Type *type_suffix(struct Token **rest, struct Token *token,
 		return func_params(rest, token->next, ty);
 	if (equal(token, "[")) {
 		int sz = get_number(token->next);
-		*rest = skip(token->next->next, "]");
+		token = skip(token->next->next, "]");
+		ty = type_suffix(rest, token, ty);
 		return array_of(ty, sz);
 	}
 	*rest = token;
