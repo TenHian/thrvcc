@@ -87,15 +87,22 @@ static void load(struct Type *type)
 		return;
 
 	printf("  # read the addr that sotred in a0, mov its value into a0\n");
-	printf("  ld a0, 0(a0)\n");
+	if (type->size == 1)
+		printf("  lb a0, 0(a0)\n");
+	else
+		printf("  ld a0, 0(a0)\n");
 }
 
 // store the top item (its addr) into a0
-static void store(void)
+static void store(struct Type *type)
 {
 	pop("a1");
+
 	printf("  # write the value that stored in a0 into the address stored in a1\n");
-	printf("  sd a0, 0(a1)\n");
+	if (type->size == 1)
+		printf("  sb a0, 0(a1)\n");
+	else
+		printf("  sd a0, 0(a1)\n");
 }
 
 static void gen_expr(struct AstNode *node)
@@ -125,7 +132,7 @@ static void gen_expr(struct AstNode *node)
 		gen_addr(node->lhs);
 		push();
 		gen_expr(node->rhs);
-		store();
+		store(node->type);
 		return;
 	case ND_FUNCALL: {
 		// args count
@@ -387,8 +394,12 @@ void emit_text(struct Local_Var *prog)
 		for (struct Local_Var *var = fn->params; var; var = var->next) {
 			printf("  # push reg %s value into %s stack address\n",
 			       ArgsReg[i_regs], var->name);
-			printf("  sd %s, %d(fp)\n", ArgsReg[i_regs++],
-			       var->offset);
+			if (var->type->size == 1)
+				printf("  sb %s, %d(fp)\n", ArgsReg[i_regs++],
+				       var->offset);
+			else
+				printf("  sd %s, %d(fp)\n", ArgsReg[i_regs++],
+				       var->offset);
 		}
 
 		// Iterate through statements list, gen code

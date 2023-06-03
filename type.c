@@ -1,11 +1,12 @@
 #include "thrvcc.h"
 #include <stdlib.h>
 
+struct Type *TyChar = &(struct Type){ TY_CHAR, 1 };
 struct Type *TyInt = &(struct Type){ TY_INT, 8 };
 
 bool is_integer(struct Type *type)
 {
-	return type->kind == TY_INT;
+	return type->kind == TY_CHAR || type->kind == TY_INT;
 }
 
 // copy type

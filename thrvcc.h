@@ -48,6 +48,7 @@ enum NodeKind {
 };
 
 enum TypeKind {
+	TY_CHAR, // char
 	TY_INT, // integer
 	TY_PTR, // pointer
 	TY_FUNC, // function
@@ -127,6 +128,7 @@ struct AstNode {
 	int val;
 };
 
+extern struct Type *TyChar;
 extern struct Type *TyInt;
 
 void error_out(char *fmt, ...);

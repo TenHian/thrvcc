@@ -17,7 +17,7 @@ struct Local_Var *Globals;
 
 // program = (functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
-// declspec = "int"
+// declspec = "char" | "int"
 // declarator = "*"* ident typeSuffix
 // typeSuffix = "(" funcParams | "[" num "]" | typeSuffix | ε
 // funcParams = (param ("," param)*)? ")"
@@ -166,10 +166,17 @@ static int get_number(struct Token *token)
 	return token->val;
 }
 
-// declspec = "int"
+// declspec = "char" | "int"
 // declarator specifier
 static struct Type *declspec(struct Token **rest, struct Token *token)
 {
+	// "char"
+	if (equal(token, "char")) {
+		*rest = token->next;
+		return TyChar;
+	}
+
+	// "int"
 	*rest = skip(token, "int");
 	return TyInt;
 }
@@ -284,6 +291,12 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token)
 	return node;
 }
 
+// determine if it is a type name
+static bool is_typename(struct Token *token)
+{
+	return equal(token, "char") || equal(token, "int");
+}
+
 // parse stmt
 // stmt = "return" expr ";"
 //      | "if" "(" expr ")" stmt ("else" stmt)?
@@ -372,7 +385,7 @@ static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 	// (declaration | stmt)* "}"
 	while (!equal(token, "}")) {
 		// declaration
-		if (equal(token, "int"))
+		if (is_typename(token))
 			cur->next = declaration(&token, token);
 		// stmt
 		else
