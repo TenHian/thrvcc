@@ -61,10 +61,15 @@ static void gen_addr(struct AstNode *node)
 {
 	switch (node->kind) {
 	case ND_VAR:
-		// offset fp
-		printf("  # get varable %s's address in stack as %d(fp)\n",
-		       node->var->name, node->var->offset);
-		printf("  addi a0, fp, %d\n", node->var->offset);
+		if (node->var->is_local) { // offset fp
+			printf("  # get varable %s's address in stack as %d(fp)\n",
+			       node->var->name, node->var->offset);
+			printf("  addi a0, fp, %d\n", node->var->offset);
+		} else {
+			printf("  # get global var %s address\n",
+			       node->var->name);
+			printf("  la a0, %s\n", node->var->name);
+		}
 		return;
 	case ND_DEREF:
 		gen_expr(node->lhs);
@@ -319,10 +324,24 @@ static void assign_lvar_offsets(struct Local_Var *prog)
 	}
 }
 
-void codegen(struct Local_Var *prog)
+static void emit_data(struct Local_Var *prog)
 {
-	assign_lvar_offsets(prog);
+	for (struct Local_Var *var = prog; var; var = var->next) {
+		if (var->is_function)
+			continue;
 
+		printf("  # DATA segment label\n");
+		printf("  .data\n");
+		printf("  .global %s\n", var->name);
+		printf("  # global varable %s\n", var->name);
+		printf("%s:\n", var->name);
+		printf("  # zero fill %d bits\n", var->type->size);
+		printf("  .zero %d\n", var->type->size);
+	}
+}
+
+void emit_text(struct Local_Var *prog)
+{
 	// codegen for every single function
 	for (struct Local_Var *fn = prog; fn; fn = fn->next) {
 		if (!fn->is_function)
@@ -330,6 +349,7 @@ void codegen(struct Local_Var *prog)
 
 		printf("\n  # define global %s seg\n", fn->name);
 		printf("  .globl %s\n", fn->name);
+		printf("  # code segment labels\n");
 		printf("  .text\n");
 
 		printf("# =====%s start=====\n", fn->name);
@@ -392,4 +412,14 @@ void codegen(struct Local_Var *prog)
 
 		printf("  ret\n");
 	}
+}
+
+void codegen(struct Local_Var *prog)
+{
+	// calculate Local_Var offset
+	assign_lvar_offsets(prog);
+	// gen data
+	emit_data(prog);
+	// gen code
+	emit_text(prog);
 }

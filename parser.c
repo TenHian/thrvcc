@@ -1,6 +1,7 @@
 #include "thrvcc.h"
 #include <assert.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -64,7 +65,13 @@ static struct AstNode *primary(struct Token **rest, struct Token *token);
 // find a local var by search name
 static struct Local_Var *find_var(struct Token *token)
 {
+	// find var in Locals
 	for (struct Local_Var *var = Locals; var; var = var->next)
+		if (strlen(var->name) == token->len &&
+		    !strncmp(token->location, var->name, token->len))
+			return var;
+	// find var in Globals
+	for (struct Local_Var *var = Globals; var; var = var->next)
 		if (strlen(var->name) == token->len &&
 		    !strncmp(token->location, var->name, token->len))
 			return var;
@@ -736,6 +743,34 @@ static struct Token *function(struct Token *token, struct Type *base_type)
 	return token;
 }
 
+// construct globalVariable
+static struct Token *global_variable(struct Token *token,
+				     struct Type *base_type)
+{
+	bool first = true;
+
+	while (!consume(&token, token, ";")) {
+		if (!first)
+			token = skip(token, ",");
+		first = false;
+
+		struct Type *type = declarator(&token, token, base_type);
+		new_gvar(get_ident(type->name), type);
+	}
+	return token;
+}
+
+// distinguish between functions and global variables
+static bool is_function(struct Token *token)
+{
+	if (equal(token, ";"))
+		return false;
+
+	struct Type dummy = {};
+	struct Type *type = declarator(&token, token, &dummy);
+	return type->kind == TY_FUNC;
+}
+
 // parser
 // program = (functionDefinition | globalVariable)*
 struct Local_Var *parse(struct Token *token)
@@ -744,7 +779,13 @@ struct Local_Var *parse(struct Token *token)
 
 	while (token->kind != TK_EOF) {
 		struct Type *base_type = declspec(&token, token);
-		token = function(token, base_type);
+		// function
+		if (is_function(token)) {
+			token = function(token, base_type);
+			continue;
+		}
+		// global variable
+		token = global_variable(token, base_type);
 	}
 
 	return Globals;
