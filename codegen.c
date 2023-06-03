@@ -15,7 +15,7 @@ static int StackDepth;
 //         static void gen_expr(struct AstNode *node)
 static char *ArgsReg[] = { "a0", "a1", "a2", "a3", "a4", "a5" };
 // current func
-static struct Function *CurFn;
+static struct Local_Var *CurFn;
 
 static void gen_expr(struct AstNode *node);
 
@@ -298,10 +298,14 @@ static void gen_stmt(struct AstNode *node)
 }
 
 // cau the offset according to global var list
-static void assign_lvar_offsets(struct Function *prog)
+static void assign_lvar_offsets(struct Local_Var *prog)
 {
 	// calculate the stack space that needed for every func
-	for (struct Function *fn = prog; fn; fn = fn->next) {
+	for (struct Local_Var *fn = prog; fn; fn = fn->next) {
+		// if not a function, end!
+		if (!fn->is_function)
+			continue;
+
 		int offset = 0;
 		// read all var
 		for (struct Local_Var *var = fn->locals; var; var = var->next) {
@@ -315,12 +319,19 @@ static void assign_lvar_offsets(struct Function *prog)
 	}
 }
 
-void codegen(struct Function *prog)
+void codegen(struct Local_Var *prog)
 {
 	assign_lvar_offsets(prog);
-	for (struct Function *fn = prog; fn; fn = fn->next) {
+
+	// codegen for every single function
+	for (struct Local_Var *fn = prog; fn; fn = fn->next) {
+		if (!fn->is_function)
+			continue;
+
 		printf("\n  # define global %s seg\n", fn->name);
 		printf("  .globl %s\n", fn->name);
+		printf("  .text\n");
+
 		printf("# =====%s start=====\n", fn->name);
 		printf("# %s segment label\n", fn->name);
 		printf("%s:\n", fn->name);

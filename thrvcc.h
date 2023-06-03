@@ -80,16 +80,20 @@ struct Type {
 	struct Type *next; // next type
 };
 
+// variable or function
 struct Local_Var {
 	struct Local_Var *next; // point to next local_var
 	char *name; // local_var name
 	struct Type *type; // type
-	int offset; // register fp offset
-};
+	bool is_local; // is local_var? or global_var?
 
-struct Function {
-	struct Function *next; // next func
-	char *name; // func name
+	// local_var
+	int offset; // register fp offset
+
+	// global_var or function
+	bool is_function; // is function?
+
+	// function
 	struct Local_Var *params; // parameters
 	struct AstNode *body; // func body
 	struct Local_Var *locals; // local variables
@@ -146,6 +150,6 @@ struct Type *func_type(struct Type *return_ty);
 // Lexical analysis
 struct Token *lexer(char *formula);
 // Grammatical analysis
-struct Function *parse(struct Token *token);
+struct Local_Var *parse(struct Token *token);
 // Code Generation
-void codegen(struct Function *prog);
+void codegen(struct Local_Var *prog);

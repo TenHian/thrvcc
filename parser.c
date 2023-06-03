@@ -1,5 +1,6 @@
 #include "thrvcc.h"
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -11,8 +12,9 @@
 //         static struct Local_Var *new_lvar(char *name, struct Type *type)
 //         static struct Function *function(struct Token **rest, struct Token *token)
 struct Local_Var *Locals;
+struct Local_Var *Globals;
 
-// program = functionDefinition*
+// program = (functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = "int"
 // declarator = "*"* ident typeSuffix
@@ -112,15 +114,32 @@ static struct AstNode *new_var_astnode(struct Local_Var *var,
 	return node;
 }
 
-// add a var into global var list
-static struct Local_Var *new_lvar(char *name, struct Type *type)
+// construct a new variable
+static struct Local_Var *new_var(char *name, struct Type *type)
 {
 	struct Local_Var *var = calloc(1, sizeof(struct Local_Var));
 	var->name = name;
 	var->type = type;
+	return var;
+}
+
+// add a local var into var list
+static struct Local_Var *new_lvar(char *name, struct Type *type)
+{
+	struct Local_Var *var = new_var(name, type);
+	var->is_local = true;
 	// insert into head
 	var->next = Locals;
 	Locals = var;
+	return var;
+}
+
+// add a global var into var list
+static struct Local_Var *new_gvar(char *name, struct Type *type)
+{
+	struct Local_Var *var = new_var(name, type);
+	var->next = Globals;
+	Globals = var;
 	return var;
 }
 
@@ -697,39 +716,36 @@ static void create_params_lvars(struct Type *param)
 }
 
 // functionDefinition = declspec declarator "{" compoundStmt*
-static struct Function *function(struct Token **rest, struct Token *token)
+static struct Token *function(struct Token *token, struct Type *base_type)
 {
-	// declspec
-	struct Type *type = declspec(&token, token);
-	// declarator? ident "(" ")"
-	type = declarator(&token, token, type);
+	struct Type *type = declarator(&token, token, base_type);
+
+	struct Local_Var *fn = new_gvar(get_ident(type->name), type);
+	fn->is_function = true;
 
 	// clean global Locals
 	Locals = NULL;
-
-	// read ident from paesed type
-	struct Function *fn = calloc(1, sizeof(struct Function));
-	// func name
-	fn->name = get_ident(type->name);
 	// func parameters
 	create_params_lvars(type->params);
 	fn->params = Locals;
 
 	token = skip(token, "{");
 	// func body store AST, Locals store var
-	fn->body = compoundstmt(rest, token);
+	fn->body = compoundstmt(&token, token);
 	fn->locals = Locals;
-	return fn;
+	return token;
 }
 
 // parser
-// program = functionDefinition*
-struct Function *parse(struct Token *token)
+// program = (functionDefinition | globalVariable)*
+struct Local_Var *parse(struct Token *token)
 {
-	struct Function head = {};
-	struct Function *cur = &head;
+	Globals = NULL;
 
-	while (token->kind != TK_EOF)
-		cur = cur->next = function(&token, token);
-	return head.next;
+	while (token->kind != TK_EOF) {
+		struct Type *base_type = declspec(&token, token);
+		token = function(token, base_type);
+	}
+
+	return Globals;
 }

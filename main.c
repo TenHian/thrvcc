@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 	struct Token *token = lexer(argv[1]);
 
 	// parse gen ast
-	struct Function *prog = parse(token);
+	struct Local_Var *prog = parse(token);
 
 	codegen(prog);
 
