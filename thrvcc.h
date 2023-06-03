@@ -15,6 +15,7 @@ enum TokenKind {
 	TK_IDENT, // identifiers
 	TK_PUNCT, // operator like "+" "-"
 	TK_KEYWORD, // keyword
+	TK_STR, // string literals
 	TK_NUM,
 	TK_EOF,
 };
@@ -61,6 +62,8 @@ struct Token {
 	int val;
 	char *location;
 	int len;
+	struct Type *type;
+	char *str;
 };
 
 struct Type {
@@ -93,6 +96,9 @@ struct Local_Var {
 
 	// global_var or function
 	bool is_function; // is function?
+
+	// global var
+	char *init_data;
 
 	// function
 	struct Local_Var *params; // parameters

@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
@@ -339,11 +340,25 @@ static void emit_data(struct Local_Var *prog)
 
 		printf("  # DATA segment label\n");
 		printf("  .data\n");
-		printf("  .global %s\n", var->name);
-		printf("  # global varable %s\n", var->name);
-		printf("%s:\n", var->name);
-		printf("  # zero fill %d bits\n", var->type->size);
-		printf("  .zero %d\n", var->type->size);
+		// determine if there is a value
+		if (var->init_data) {
+			printf("%s:\n", var->name);
+			// print string content, include escaped characters
+			for (int i = 0; i < var->type->size; ++i) {
+				char c = var->init_data[i];
+				if (isprint(c))
+					printf("  .byte %d\t# character: %c\n",
+					       c, c);
+				else
+					printf("  .byte %d\n", c);
+			}
+		} else {
+			printf("  # global varable %s\n", var->name);
+			printf("  .global %s\n", var->name);
+			printf("%s:\n", var->name);
+			printf("  # zero fill %d bits\n", var->type->size);
+			printf("  .zero %d\n", var->type->size);
+		}
 	}
 }
 

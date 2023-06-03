@@ -1,5 +1,6 @@
 #include "thrvcc.h"
 #include <stdbool.h>
+#include <string.h>
 
 static char *InputArgv; // reg the argv[1]
 
@@ -127,6 +128,24 @@ static bool is_keyword(struct Token *token)
 	return false;
 }
 
+// read string literals
+static struct Token *read_string_literal(char *start)
+{
+	char *p = start + 1;
+	// identify all char in string that not ' " '
+	for (; *p != '"'; ++p)
+		// if \n or \0, error
+		if (*p == '\n' || *p == '\0')
+			error_at(start, "unclosed string literal");
+
+	struct Token *token = new_token(TK_STR, start, p + 1);
+	// construct char[]
+	token->type = array_of(TyChar, p - start);
+	// copy string literal
+	token->str = strndup(start + 1, p - start - 1);
+	return token;
+}
+
 // convert the terminator named "return" to KEYWORD
 static void convert_keyword(struct Token *token)
 {
@@ -157,6 +176,14 @@ struct Token *lexer(char *formula)
 			const char *oldptr = formula;
 			cur->val = strtoul(formula, &formula, 10);
 			cur->len = formula - oldptr;
+			continue;
+		}
+
+		// parse string literal
+		if (*formula == '"') {
+			cur->next = read_string_literal(formula);
+			cur = cur->next;
+			formula += cur->len;
 			continue;
 		}
 

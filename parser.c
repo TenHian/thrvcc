@@ -2,8 +2,10 @@
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <threads.h>
 #include <time.h>
 
 // all var add in this list while parse
@@ -41,7 +43,7 @@ struct Local_Var *Globals;
 // mul = unary ("*" | "/")
 // unary = ("+" | "-" | "*" | "&") unary | postfix
 // postfix = primary ("[" expr "]")*
-// primary = "(" expr ")" | "sizeof" unary | ident funcArgs? | num
+// primary = "(" expr ")" | "sizeof" unary | ident funcArgs? | str | num
 
 // funcall = ident "(" (assign ("," assign)*)? ")"
 
@@ -147,6 +149,30 @@ static struct Local_Var *new_gvar(char *name, struct Type *type)
 	struct Local_Var *var = new_var(name, type);
 	var->next = Globals;
 	Globals = var;
+	return var;
+}
+
+// new unique name
+static char *new_unique_name(void)
+{
+	static int id = 0;
+	char *buf = calloc(1, 20);
+	// store the formatted string into Buf
+	sprintf(buf, ".L..%d", id++);
+	return buf;
+}
+
+// add new anonymous global var
+static struct Local_Var *new_anon_gvar(struct Type *type)
+{
+	return new_gvar(new_unique_name(), type);
+}
+
+// new string literal
+static struct Local_Var *new_string_literal(char *str, struct Type *type)
+{
+	struct Local_Var *var = new_anon_gvar(type);
+	var->init_data = str;
 	return var;
 }
 
@@ -680,7 +706,7 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 }
 
 // parse "(" ")" | num | variables
-// primary = "(" expr ")" | "sizeof" unary | ident funcArgs? | num
+// primary = "(" expr ")" | "sizeof" unary | ident funcArgs? | str | num
 static struct AstNode *primary(struct Token **rest, struct Token *token)
 {
 	// "(" expr ")"
@@ -707,6 +733,13 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 		// if var not exist, creat a new var in global var list
 		if (!var)
 			error_token(token, "undefined variable");
+		*rest = token->next;
+		return new_var_astnode(var, token);
+	}
+	// str
+	if (token->kind == TK_STR) {
+		struct Local_Var *var =
+			new_string_literal(token->str, token->type);
 		*rest = token->next;
 		return new_var_astnode(var, token);
 	}
