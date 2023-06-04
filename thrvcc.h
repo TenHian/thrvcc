@@ -85,8 +85,8 @@ struct Type {
 };
 
 // variable or function
-struct Local_Var {
-	struct Local_Var *next; // point to next local_var
+struct Obj_Var {
+	struct Obj_Var *next; // point to next local_var
 	char *name; // local_var name
 	struct Type *type; // type
 	bool is_local; // is local_var? or global_var?
@@ -101,9 +101,9 @@ struct Local_Var {
 	char *init_data;
 
 	// function
-	struct Local_Var *params; // parameters
+	struct Obj_Var *params; // parameters
 	struct AstNode *body; // func body
-	struct Local_Var *locals; // local variables
+	struct Obj_Var *locals; // local variables
 	int stack_size;
 };
 
@@ -130,7 +130,7 @@ struct AstNode {
 	char *func_name; // func name
 	struct AstNode *args; // func args
 
-	struct Local_Var *var; // string that store var type
+	struct Obj_Var *var; // string that store var type
 	int val;
 };
 
@@ -141,6 +141,8 @@ void error_out(char *fmt, ...);
 void verror_at(char *location, char *fmt, va_list va);
 void error_at(char *location, char *fmt, ...);
 void error_token(struct Token *token, char *fmt, ...);
+// string format
+char *format(char *fmt, ...);
 // token recognition
 bool equal(struct Token *token, char *str);
 struct Token *skip(struct Token *token, char *str);
@@ -158,6 +160,6 @@ struct Type *func_type(struct Type *return_ty);
 // Lexical analysis
 struct Token *lexer(char *formula);
 // Grammatical analysis
-struct Local_Var *parse(struct Token *token);
+struct Obj_Var *parse(struct Token *token);
 // Code Generation
-void codegen(struct Local_Var *prog);
+void codegen(struct Obj_Var *prog);

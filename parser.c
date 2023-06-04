@@ -11,11 +11,11 @@
 // all var add in this list while parse
 // means Local Variables
 // used by func:
-//         static struct Local_Var *find_var(struct Token *token)
-//         static struct Local_Var *new_lvar(char *name, struct Type *type)
+//         static struct Obj_Var *find_var(struct Token *token)
+//         static struct Obj_Var *new_lvar(char *name, struct Type *type)
 //         static struct Function *function(struct Token **rest, struct Token *token)
-struct Local_Var *Locals;
-struct Local_Var *Globals;
+struct Obj_Var *Locals;
+struct Obj_Var *Globals;
 
 // program = (functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
@@ -65,15 +65,15 @@ static struct AstNode *postfix(struct Token **rest, struct Token *token);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
 
 // find a local var by search name
-static struct Local_Var *find_var(struct Token *token)
+static struct Obj_Var *find_var(struct Token *token)
 {
 	// find var in Locals
-	for (struct Local_Var *var = Locals; var; var = var->next)
+	for (struct Obj_Var *var = Locals; var; var = var->next)
 		if (strlen(var->name) == token->len &&
 		    !strncmp(token->location, var->name, token->len))
 			return var;
 	// find var in Globals
-	for (struct Local_Var *var = Globals; var; var = var->next)
+	for (struct Obj_Var *var = Globals; var; var = var->next)
 		if (strlen(var->name) == token->len &&
 		    !strncmp(token->location, var->name, token->len))
 			return var;
@@ -115,7 +115,7 @@ static struct AstNode *new_num_astnode(int val, struct Token *token)
 	return node;
 }
 
-static struct AstNode *new_var_astnode(struct Local_Var *var,
+static struct AstNode *new_var_astnode(struct Obj_Var *var,
 				       struct Token *token)
 {
 	struct AstNode *node = new_astnode(ND_VAR, token);
@@ -124,18 +124,18 @@ static struct AstNode *new_var_astnode(struct Local_Var *var,
 }
 
 // construct a new variable
-static struct Local_Var *new_var(char *name, struct Type *type)
+static struct Obj_Var *new_var(char *name, struct Type *type)
 {
-	struct Local_Var *var = calloc(1, sizeof(struct Local_Var));
+	struct Obj_Var *var = calloc(1, sizeof(struct Obj_Var));
 	var->name = name;
 	var->type = type;
 	return var;
 }
 
 // add a local var into var list
-static struct Local_Var *new_lvar(char *name, struct Type *type)
+static struct Obj_Var *new_lvar(char *name, struct Type *type)
 {
-	struct Local_Var *var = new_var(name, type);
+	struct Obj_Var *var = new_var(name, type);
 	var->is_local = true;
 	// insert into head
 	var->next = Locals;
@@ -144,9 +144,9 @@ static struct Local_Var *new_lvar(char *name, struct Type *type)
 }
 
 // add a global var into var list
-static struct Local_Var *new_gvar(char *name, struct Type *type)
+static struct Obj_Var *new_gvar(char *name, struct Type *type)
 {
-	struct Local_Var *var = new_var(name, type);
+	struct Obj_Var *var = new_var(name, type);
 	var->next = Globals;
 	Globals = var;
 	return var;
@@ -156,22 +156,19 @@ static struct Local_Var *new_gvar(char *name, struct Type *type)
 static char *new_unique_name(void)
 {
 	static int id = 0;
-	char *buf = calloc(1, 20);
-	// store the formatted string into Buf
-	sprintf(buf, ".L..%d", id++);
-	return buf;
+	return format(".L..%d", id++);
 }
 
 // add new anonymous global var
-static struct Local_Var *new_anon_gvar(struct Type *type)
+static struct Obj_Var *new_anon_gvar(struct Type *type)
 {
 	return new_gvar(new_unique_name(), type);
 }
 
 // new string literal
-static struct Local_Var *new_string_literal(char *str, struct Type *type)
+static struct Obj_Var *new_string_literal(char *str, struct Type *type)
 {
-	struct Local_Var *var = new_anon_gvar(type);
+	struct Obj_Var *var = new_anon_gvar(type);
 	var->init_data = str;
 	return var;
 }
@@ -293,7 +290,7 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token)
 		// declarator
 		// declare the var-type that got, include var name
 		struct Type *type = declarator(&token, token, base_type);
-		struct Local_Var *var = new_lvar(get_ident(type->name), type);
+		struct Obj_Var *var = new_lvar(get_ident(type->name), type);
 
 		// if not exist "=", its var declaration, no need to gen AstNode,
 		// already stored in Locals.
@@ -729,7 +726,7 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 
 		// ident
 		// find var
-		struct Local_Var *var = find_var(token);
+		struct Obj_Var *var = find_var(token);
 		// if var not exist, creat a new var in global var list
 		if (!var)
 			error_token(token, "undefined variable");
@@ -738,7 +735,7 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 	}
 	// str
 	if (token->kind == TK_STR) {
-		struct Local_Var *var =
+		struct Obj_Var *var =
 			new_string_literal(token->str, token->type);
 		*rest = token->next;
 		return new_var_astnode(var, token);
@@ -773,7 +770,7 @@ static struct Token *function(struct Token *token, struct Type *base_type)
 {
 	struct Type *type = declarator(&token, token, base_type);
 
-	struct Local_Var *fn = new_gvar(get_ident(type->name), type);
+	struct Obj_Var *fn = new_gvar(get_ident(type->name), type);
 	fn->is_function = true;
 
 	// clean global Locals
@@ -819,7 +816,7 @@ static bool is_function(struct Token *token)
 
 // parser
 // program = (functionDefinition | globalVariable)*
-struct Local_Var *parse(struct Token *token)
+struct Obj_Var *parse(struct Token *token)
 {
 	Globals = NULL;
 

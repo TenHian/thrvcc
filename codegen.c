@@ -16,7 +16,7 @@ static int StackDepth;
 //         static void gen_expr(struct AstNode *node)
 static char *ArgsReg[] = { "a0", "a1", "a2", "a3", "a4", "a5" };
 // current func
-static struct Local_Var *CurFn;
+static struct Obj_Var *CurFn;
 
 static void gen_expr(struct AstNode *node);
 
@@ -311,17 +311,17 @@ static void gen_stmt(struct AstNode *node)
 }
 
 // cau the offset according to global var list
-static void assign_lvar_offsets(struct Local_Var *prog)
+static void assign_lvar_offsets(struct Obj_Var *prog)
 {
 	// calculate the stack space that needed for every func
-	for (struct Local_Var *fn = prog; fn; fn = fn->next) {
+	for (struct Obj_Var *fn = prog; fn; fn = fn->next) {
 		// if not a function, end!
 		if (!fn->is_function)
 			continue;
 
 		int offset = 0;
 		// read all var
-		for (struct Local_Var *var = fn->locals; var; var = var->next) {
+		for (struct Obj_Var *var = fn->locals; var; var = var->next) {
 			// alloc space to every var
 			offset += var->type->size;
 			// assign a offset to every var, aka address in stack
@@ -332,9 +332,9 @@ static void assign_lvar_offsets(struct Local_Var *prog)
 	}
 }
 
-static void emit_data(struct Local_Var *prog)
+static void emit_data(struct Obj_Var *prog)
 {
-	for (struct Local_Var *var = prog; var; var = var->next) {
+	for (struct Obj_Var *var = prog; var; var = var->next) {
 		if (var->is_function)
 			continue;
 
@@ -362,10 +362,10 @@ static void emit_data(struct Local_Var *prog)
 	}
 }
 
-void emit_text(struct Local_Var *prog)
+void emit_text(struct Obj_Var *prog)
 {
 	// codegen for every single function
-	for (struct Local_Var *fn = prog; fn; fn = fn->next) {
+	for (struct Obj_Var *fn = prog; fn; fn = fn->next) {
 		if (!fn->is_function)
 			continue;
 
@@ -406,7 +406,7 @@ void emit_text(struct Local_Var *prog)
 		printf("  addi sp, sp, -%d\n", prog->stack_size);
 
 		int i_regs = 0;
-		for (struct Local_Var *var = fn->params; var; var = var->next) {
+		for (struct Obj_Var *var = fn->params; var; var = var->next) {
 			printf("  # push reg %s value into %s stack address\n",
 			       ArgsReg[i_regs], var->name);
 			if (var->type->size == 1)
@@ -440,9 +440,9 @@ void emit_text(struct Local_Var *prog)
 	}
 }
 
-void codegen(struct Local_Var *prog)
+void codegen(struct Obj_Var *prog)
 {
-	// calculate Local_Var offset
+	// calculate Obj_Var offset
 	assign_lvar_offsets(prog);
 	// gen data
 	emit_data(prog);
