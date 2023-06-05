@@ -128,21 +128,69 @@ static bool is_keyword(struct Token *token)
 	return false;
 }
 
+// read escaped characters
+static int read_escaped_char(char *p)
+{
+	switch (*p) {
+	case 'a': // ring the bell, alarm
+		return '\a';
+	case 'b': // backspace
+		return '\b';
+	case 't': // horizontal Tabs
+		return '\t';
+	case 'n': // line break
+		return '\n';
+	case 'v': // vertical Tabs
+		return '\v';
+	case 'f': // page break
+		return '\f';
+	case 'r': // enter
+		return '\r';
+	// GUN C extensions
+	case 'e': // escape character
+		return 27;
+	default:
+		return *p;
+	}
+}
+
+static char *string_literal_end(char *p)
+{
+	char *start = p;
+	for (; *p != '"'; p++) {
+		if (*p == '\n' || *p == '\0')
+			error_at(start, "unclosed string literal");
+		if (*p == '\\')
+			p++;
+	}
+	return p;
+}
+
 // read string literals
 static struct Token *read_string_literal(char *start)
 {
-	char *p = start + 1;
-	// identify all char in string that not ' " '
-	for (; *p != '"'; ++p)
-		// if \n or \0, error
-		if (*p == '\n' || *p == '\0')
-			error_at(start, "unclosed string literal");
+	// Read right quotes to string literals
+	char *end = string_literal_end(start + 1);
+	// Define a Buf with the number of characters in the string literal + 1
+	// Use it to store the maximum number of bits of string literals
+	char *buf = calloc(1, end - start);
+	// Actual number of character bits, one escape character is 1 bit
+	int len = 0;
 
-	struct Token *token = new_token(TK_STR, start, p + 1);
-	// construct char[]
-	token->type = array_of(TyChar, p - start);
-	// copy string literal
-	token->str = strndup(start + 1, p - start - 1);
+	// identify all char in string that not ' " '
+	for (char *p = start + 1; p < end;)
+		if (*p == '\\') {
+			buf[len++] = read_escaped_char(p + 1);
+			p += 2;
+		} else {
+			buf[len++] = *p++;
+		}
+
+	// Token needs to contain a string literal with double quotes here
+	struct Token *token = new_token(TK_STR, start, end + 1);
+	// Add a bit to \0
+	token->type = array_of(TyChar, len + 1);
+	token->str = buf;
 	return token;
 }
 
