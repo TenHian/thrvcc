@@ -46,6 +46,7 @@ enum NodeKind {
 	ND_VAR, // variable
 	ND_NUM,
 	ND_EXPR_STMT, // express statement
+	ND_STMT_EXPR, // statement express, GNU feature
 };
 
 enum TypeKind {
@@ -123,7 +124,7 @@ struct AstNode {
 	struct AstNode *init; // init stmt
 	struct AstNode *increase; // increase stmt
 
-	// code block
+	// code block or statement express(GNU)
 	struct AstNode *body;
 
 	// func call

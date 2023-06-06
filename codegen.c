@@ -19,6 +19,7 @@ static char *ArgsReg[] = { "a0", "a1", "a2", "a3", "a4", "a5" };
 static struct Obj_Var *CurFn;
 
 static void gen_expr(struct AstNode *node);
+static void gen_stmt(struct AstNode *node);
 
 // code block count
 static int count(void)
@@ -134,6 +135,10 @@ static void gen_expr(struct AstNode *node)
 		push();
 		gen_expr(node->rhs);
 		store(node->type);
+		return;
+	case ND_STMT_EXPR:
+		for (struct AstNode *nd = node->body; nd; nd = nd->next)
+			gen_stmt(nd);
 		return;
 	case ND_FUNCALL: {
 		// args count

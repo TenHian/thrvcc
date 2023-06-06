@@ -108,6 +108,20 @@ void add_type(struct AstNode *node)
 			error_token(node->tok, "invalid pointer dereference");
 		node->type = node->lhs->type->base;
 		return;
+	case ND_STMT_EXPR:
+		if (node->body) {
+			struct AstNode *stmt = node->body;
+			while (stmt->next)
+				stmt = stmt->next;
+			if (stmt->kind == ND_EXPR_STMT) {
+				node->type = stmt->lhs->type;
+				return;
+			}
+		}
+		error_token(
+			node->tok,
+			"statement expression returning void is not supported");
+		return;
 	default:
 		break;
 	}

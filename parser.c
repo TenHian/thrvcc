@@ -43,7 +43,12 @@ struct Obj_Var *Globals;
 // mul = unary ("*" | "/")
 // unary = ("+" | "-" | "*" | "&") unary | postfix
 // postfix = primary ("[" expr "]")*
-// primary = "(" expr ")" | "sizeof" unary | ident funcArgs? | str | num
+// primary = "(" "{" stmt+ "}" ")"
+//         | "(" expr ")"
+//         | "sizeof" unary
+//         | ident funcArgs?
+//         | str
+//         | num
 
 // funcall = ident "(" (assign ("," assign)*)? ")"
 
@@ -115,8 +120,7 @@ static struct AstNode *new_num_astnode(int val, struct Token *token)
 	return node;
 }
 
-static struct AstNode *new_var_astnode(struct Obj_Var *var,
-				       struct Token *token)
+static struct AstNode *new_var_astnode(struct Obj_Var *var, struct Token *token)
 {
 	struct AstNode *node = new_astnode(ND_VAR, token);
 	node->var = var;
@@ -703,9 +707,22 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 }
 
 // parse "(" ")" | num | variables
-// primary = "(" expr ")" | "sizeof" unary | ident funcArgs? | str | num
+// primary = "(" "{" stmt+ "}" ")"
+//         | "(" expr ")"
+//         | "sizeof" unary
+//         | ident funcArgs?
+//         | str
+//         | num
 static struct AstNode *primary(struct Token **rest, struct Token *token)
 {
+	// "(" "{" stmt+ "}" ")"
+	if (equal(token, "(") && equal(token->next, "{")) {
+		// GNU statement expression
+		struct AstNode *node = new_astnode(ND_STMT_EXPR, token);
+		node->body = compoundstmt(&token, token->next->next)->body;
+		*rest = skip(token, ")");
+		return node;
+	}
 	// "(" expr ")"
 	if (equal(token, "(")) {
 		struct AstNode *node = expr(&token, token->next);
