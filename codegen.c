@@ -1,5 +1,6 @@
 #include "thrvcc.h"
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
@@ -21,6 +22,16 @@ static struct Obj_Var *CurFn;
 static void gen_expr(struct AstNode *node);
 static void gen_stmt(struct AstNode *node);
 
+// output string and line break
+static void println(char *fmt, ...)
+{
+	va_list va;
+	va_start(va, fmt);
+	vprintf(fmt, va);
+	va_end(va);
+	printf("\n");
+}
+
 // code block count
 static int count(void)
 {
@@ -35,18 +46,18 @@ static int count(void)
 // the number of values to be stored is variable
 static void push(void)
 {
-	printf("  # push a0 into the top of the stack\n");
-	printf("  addi sp, sp, -8\n");
-	printf("  sd a0, 0(sp)\n");
+	println("  # push a0 into the top of the stack");
+	println("  addi sp, sp, -8");
+	println("  sd a0, 0(sp)");
 	StackDepth++;
 }
 
 // pop stack, mov the top val of stack into a1
 static void pop(char *reg)
 {
-	printf("  # pop out the top of the stack, and mov it into %s\n", reg);
-	printf("  ld %s, 0(sp)\n", reg);
-	printf("  addi sp, sp, 8\n");
+	println("  # pop out the top of the stack, and mov it into %s", reg);
+	println("  ld %s, 0(sp)", reg);
+	println("  addi sp, sp, 8");
 	StackDepth--;
 }
 
@@ -64,13 +75,13 @@ static void gen_addr(struct AstNode *node)
 	switch (node->kind) {
 	case ND_VAR:
 		if (node->var->is_local) { // offset fp
-			printf("  # get varable %s's address in stack as %d(fp)\n",
-			       node->var->name, node->var->offset);
-			printf("  addi a0, fp, %d\n", node->var->offset);
+			println("  # get varable %s's address in stack as %d(fp)",
+				node->var->name, node->var->offset);
+			println("  addi a0, fp, %d", node->var->offset);
 		} else {
-			printf("  # get global var %s address\n",
-			       node->var->name);
-			printf("  la a0, %s\n", node->var->name);
+			println("  # get global var %s address",
+				node->var->name);
+			println("  la a0, %s", node->var->name);
 		}
 		return;
 	case ND_DEREF:
@@ -88,11 +99,11 @@ static void load(struct Type *type)
 	if (type->kind == TY_ARRAY)
 		return;
 
-	printf("  # read the addr that sotred in a0, mov its value into a0\n");
+	println("  # read the addr that sotred in a0, mov its value into a0");
 	if (type->size == 1)
-		printf("  lb a0, 0(a0)\n");
+		println("  lb a0, 0(a0)");
 	else
-		printf("  ld a0, 0(a0)\n");
+		println("  ld a0, 0(a0)");
 }
 
 // store the top item (its addr) into a0
@@ -100,24 +111,24 @@ static void store(struct Type *type)
 {
 	pop("a1");
 
-	printf("  # write the value that stored in a0 into the address stored in a1\n");
+	println("  # write the value that stored in a0 into the address stored in a1");
 	if (type->size == 1)
-		printf("  sb a0, 0(a1)\n");
+		println("  sb a0, 0(a1)");
 	else
-		printf("  sd a0, 0(a1)\n");
+		println("  sd a0, 0(a1)");
 }
 
 static void gen_expr(struct AstNode *node)
 {
 	switch (node->kind) {
 	case ND_NUM:
-		printf("  # load %d into a0\n", node->val);
-		printf("  li a0, %d\n", node->val);
+		println("  # load %d into a0", node->val);
+		println("  li a0, %d", node->val);
 		return;
 	case ND_NEG:
 		gen_expr(node->lhs);
-		printf("  # reverse the value of a0\n");
-		printf("  neg a0, a0\n");
+		println("  # reverse the value of a0");
+		println("  neg a0, a0");
 		return;
 	case ND_VAR:
 		gen_addr(node);
@@ -154,8 +165,8 @@ static void gen_expr(struct AstNode *node)
 			pop(ArgsReg[i]);
 
 		// func call
-		printf("  # func call %s\n", node->func_name);
-		printf("  call %s\n", node->func_name);
+		println("  # func call %s", node->func_name);
+		println("  call %s", node->func_name);
 		return;
 	}
 	default:
@@ -170,49 +181,49 @@ static void gen_expr(struct AstNode *node)
 	// gen bin-tree node
 	switch (node->kind) {
 	case ND_ADD: // + a0=a0+a1
-		printf("  # a0+a1, write the result into a0\n");
-		printf("  add a0, a0, a1\n");
+		println("  # a0+a1, write the result into a0");
+		println("  add a0, a0, a1");
 		return;
 	case ND_SUB: // - a0=a0-a1
-		printf("  # a0-a1, write the result into a0\n");
-		printf("  sub a0, a0, a1\n");
+		println("  # a0-a1, write the result into a0");
+		println("  sub a0, a0, a1");
 		return;
 	case ND_MUL: // * a0=a0*a1
-		printf("  # a0xa1, write the result into a0\n");
-		printf("  mul a0, a0, a1\n");
+		println("  # a0xa1, write the result into a0");
+		println("  mul a0, a0, a1");
 		return;
 	case ND_DIV: // / a0=a0/a1
-		printf("  # a0/a1, write the result into a0\n");
-		printf("  div a0, a0, a1\n");
+		println("  # a0/a1, write the result into a0");
+		println("  div a0, a0, a1");
 		return;
 	case ND_EQ:
 	case ND_NE:
 		// a0=a0^a1
-		printf("  # determine a0%sa1\n",
-		       node->kind == ND_EQ ? "=" : "!=");
-		printf("  xor a0, a0, a1\n");
+		println("  # determine a0%sa1",
+			node->kind == ND_EQ ? "=" : "!=");
+		println("  xor a0, a0, a1");
 
 		if (node->kind == ND_EQ)
 			// a0==a1
 			// a0=a0^a1, sltiu a0, a0, 1
 			// if 0, mk 1
-			printf("  seqz a0, a0\n");
+			println("  seqz a0, a0");
 		else
 			// a0!=a1
 			// a0=a0^a1, sltu a0, x0, a0
 			// if not eq to 0, turn it into 1
-			printf("  snez a0, a0\n");
+			println("  snez a0, a0");
 		return;
 	case ND_LT:
-		printf("  # determine a0<a1?\n");
-		printf("  slt a0, a0, a1\n");
+		println("  # determine a0<a1?");
+		println("  slt a0, a0, a1");
 		return;
 	case ND_LE:
 		// a0<=a1 equal to
 		// a0=a1<a0, a0=a1^1
-		printf("  #determine a0<=a1\n");
-		printf("  slt a0, a1, a0\n");
-		printf("  xori a0, a0, 1\n");
+		println("  #determine a0<=a1");
+		println("  slt a0, a1, a0");
+		println("  xori a0, a0, 1");
 		return;
 	default:
 		break;
@@ -229,68 +240,68 @@ static void gen_stmt(struct AstNode *node)
 	case ND_IF: {
 		// code block count
 		int C = count();
-		printf("\n# =====Branch Statement %d =====\n", C);
+		println("\n# =====Branch Statement %d =====", C);
 		// gen conditional stmt
-		printf("\n# Conditional Statement %d\n", C);
+		println("\n# Conditional Statement %d", C);
 		gen_expr(node->condition);
 		// determine condition, if 0 jump to label else
-		printf("  # if a0 == 0, jump to branch%d's .L.else.%d segment\n",
-		       C, C);
-		printf("  beqz a0, .L.else.%d\n", C);
+		println("  # if a0 == 0, jump to branch%d's .L.else.%d segment",
+			C, C);
+		println("  beqz a0, .L.else.%d", C);
 		// then stmt
-		printf("\n# then statement%d\n", C);
+		println("\n# then statement%d", C);
 		gen_stmt(node->then_);
 		// over, jump to stmt after if stmt
-		printf("  # jump to branch%d's .L.end.%d segment\n", C, C);
-		printf("  j .L.end.%d\n", C);
+		println("  # jump to branch%d's .L.end.%d segment", C, C);
+		println("  j .L.end.%d", C);
 		// else block, else block may empty, so output its label
-		printf("\n# else statement%d\n", C);
-		printf("# branch%d's .L.else.%d segment label\n", C, C);
-		printf(".L.else.%d:\n", C);
+		println("\n# else statement%d", C);
+		println("# branch%d's .L.else.%d segment label", C, C);
+		println(".L.else.%d:", C);
 		// gen else_
 		if (node->else_)
 			gen_stmt(node->else_);
-		printf("\n# branch%d's .L.end.%d segment label\n", C, C);
-		printf(".L.end.%d:\n", C);
+		println("\n# branch%d's .L.end.%d segment label", C, C);
+		println(".L.end.%d:", C);
 		return;
 	}
 	// for stmt or while stmt
 	case ND_FOR: {
 		// code block count
 		int C = count();
-		printf("\n# =====Loop Statement %d =====\n", C);
+		println("\n# =====Loop Statement %d =====", C);
 		// gen init stmt
 		if (node->init) {
-			printf("\n# Init Statement%d\n", C);
+			println("\n# Init Statement%d", C);
 			gen_stmt(node->init);
 		}
 		// output loop's head label
-		printf("\n# loop%d's .L.begin.%d segment label\n", C, C);
-		printf(".L.begin.%d:\n", C);
+		println("\n# loop%d's .L.begin.%d segment label", C, C);
+		println(".L.begin.%d:", C);
 		// process loop's conditional stmt
-		printf("\n# Conditional Statement %d\n", C);
+		println("\n# Conditional Statement %d", C);
 		if (node->condition) {
 			// gen loop's conditional stmt
 			gen_expr(node->condition);
 			// determine condition, if 0 jump to loop's end
-			printf("  # if a0==0, jump to loop%d's .L.end.%d segment\n",
-			       C, C);
-			printf("  beqz a0, .L.end.%d\n", C);
+			println("  # if a0==0, jump to loop%d's .L.end.%d segment",
+				C, C);
+			println("  beqz a0, .L.end.%d", C);
 		}
 		// gen loop's body
-		printf("\n# then statement%d\n", C);
+		println("\n# then statement%d", C);
 		gen_stmt(node->then_);
 		// process loop's increase stmt
 		if (node->increase) {
-			printf("\n# increase statement%d\n", C);
+			println("\n# increase statement%d", C);
 			gen_expr(node->increase);
 		}
 		// jump to loop's head
-		printf("  # jump to loop%d's .L.begin.%d segment\n", C, C);
-		printf("  j .L.begin.%d\n", C);
+		println("  # jump to loop%d's .L.begin.%d segment", C, C);
+		println("  j .L.begin.%d", C);
 		// output the loop's tail label
-		printf("\n# loop%d's .L.end.%d segment label\n", C, C);
-		printf(".L.end.%d:\n", C);
+		println("\n# loop%d's .L.end.%d segment label", C, C);
+		println(".L.end.%d:", C);
 		return;
 	}
 	case ND_BLOCK:
@@ -298,12 +309,12 @@ static void gen_stmt(struct AstNode *node)
 			gen_stmt(nd);
 		return;
 	case ND_RETURN:
-		printf("# return statement\n");
+		println("# return statement");
 		gen_expr(node->lhs);
 		// unconditional jump statement, jump to the .L.return segment
 		// 'j offset' is an alias instruction for 'jal x0, offset'
-		printf("  # jump to .L.return.%s segment\n", CurFn->name);
-		printf("  j .L.return.%s\n", CurFn->name);
+		println("  # jump to .L.return.%s segment", CurFn->name);
+		println("  j .L.return.%s", CurFn->name);
 		return;
 	case ND_EXPR_STMT:
 		gen_expr(node->lhs);
@@ -343,26 +354,26 @@ static void emit_data(struct Obj_Var *prog)
 		if (var->is_function)
 			continue;
 
-		printf("  # DATA segment label\n");
-		printf("  .data\n");
+		println("  # DATA segment label");
+		println("  .data");
 		// determine if there is a value
 		if (var->init_data) {
-			printf("%s:\n", var->name);
+			println("%s:", var->name);
 			// print string content, include escaped characters
 			for (int i = 0; i < var->type->size; ++i) {
 				char c = var->init_data[i];
 				if (isprint(c))
-					printf("  .byte %d\t# character: %c\n",
-					       c, c);
+					println("  .byte %d\t# character: %c",
+						c, c);
 				else
-					printf("  .byte %d\n", c);
+					println("  .byte %d", c);
 			}
 		} else {
-			printf("  # global varable %s\n", var->name);
-			printf("  .global %s\n", var->name);
-			printf("%s:\n", var->name);
-			printf("  # zero fill %d bits\n", var->type->size);
-			printf("  .zero %d\n", var->type->size);
+			println("  # global varable %s", var->name);
+			println("  .global %s", var->name);
+			println("%s:", var->name);
+			println("  # zero fill %d bits", var->type->size);
+			println("  .zero %d", var->type->size);
 		}
 	}
 }
@@ -374,14 +385,14 @@ void emit_text(struct Obj_Var *prog)
 		if (!fn->is_function)
 			continue;
 
-		printf("\n  # define global %s seg\n", fn->name);
-		printf("  .globl %s\n", fn->name);
-		printf("  # code segment labels\n");
-		printf("  .text\n");
+		println("\n  # define global %s seg", fn->name);
+		println("  .globl %s", fn->name);
+		println("  # code segment labels");
+		println("  .text");
 
-		printf("# =====%s start=====\n", fn->name);
-		printf("# %s segment label\n", fn->name);
-		printf("%s:\n", fn->name);
+		println("# =====%s start=====", fn->name);
+		println("# %s segment label", fn->name);
+		println("%s:", fn->name);
 		CurFn = fn;
 
 		// stack layout
@@ -397,51 +408,51 @@ void emit_text(struct Obj_Var *prog)
 
 		// prologue
 		// push ra, store val of ra
-		printf("  # push ra, store val of ra \n");
-		printf("  addi sp, sp, -16\n");
-		printf("  sd ra, 8(sp)\n");
+		println("  # push ra, store val of ra ");
+		println("  addi sp, sp, -16");
+		println("  sd ra, 8(sp)");
 		// push fp, store val of fp
-		printf("  # Stack frame protection\n");
-		printf("  sd fp, 0(sp)\n");
+		println("  # Stack frame protection");
+		println("  sd fp, 0(sp)");
 		// write sp into fp
-		printf("  mv fp, sp\n");
+		println("  mv fp, sp");
 
 		// offset is the stack usable size
-		printf("  # Allocate stack space\n");
-		printf("  addi sp, sp, -%d\n", prog->stack_size);
+		println("  # Allocate stack space");
+		println("  addi sp, sp, -%d", prog->stack_size);
 
 		int i_regs = 0;
 		for (struct Obj_Var *var = fn->params; var; var = var->next) {
-			printf("  # push reg %s value into %s stack address\n",
-			       ArgsReg[i_regs], var->name);
+			println("  # push reg %s value into %s stack address",
+				ArgsReg[i_regs], var->name);
 			if (var->type->size == 1)
-				printf("  sb %s, %d(fp)\n", ArgsReg[i_regs++],
-				       var->offset);
+				println("  sb %s, %d(fp)", ArgsReg[i_regs++],
+					var->offset);
 			else
-				printf("  sd %s, %d(fp)\n", ArgsReg[i_regs++],
-				       var->offset);
+				println("  sd %s, %d(fp)", ArgsReg[i_regs++],
+					var->offset);
 		}
 
 		// Iterate through statements list, gen code
-		printf("\n# =====%s segment body=====\n", fn->name);
+		println("\n# =====%s segment body=====", fn->name);
 		gen_stmt(fn->body);
 		assert(StackDepth == 0);
 
 		// epilogue
 		// output return seg label
-		printf("\n# =====%s segment end=====\n", fn->name);
-		printf("# return segment label\n");
-		printf(".L.return.%s:\n", fn->name);
+		println("\n# =====%s segment end=====", fn->name);
+		println("# return segment label");
+		println(".L.return.%s:", fn->name);
 		// write back fp into sp
-		printf("  # return value, recovering stack frames\n");
-		printf("  mv sp, fp\n");
+		println("  # return value, recovering stack frames");
+		println("  mv sp, fp");
 		// pop fp, recover fp
-		printf("  ld fp, 0(sp)\n");
+		println("  ld fp, 0(sp)");
 		// pop ra, recover ra
-		printf("  ld ra, 8(sp)\n");
-		printf("  addi sp, sp, 16\n");
+		println("  ld ra, 8(sp)");
+		println("  addi sp, sp, 16");
 
-		printf("  ret\n");
+		println("  ret");
 	}
 }
 
