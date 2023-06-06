@@ -1,9 +1,12 @@
 #include "thrvcc.h"
 #include <ctype.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
-static char *InputArgv; // reg the argv[1]
+static char *CurLexStream; // reg the cur lexing stream
+static char *SourceFile; // current lexing file
 
 void error_out(char *fmt, ...)
 {
@@ -15,11 +18,39 @@ void error_out(char *fmt, ...)
 	exit(1);
 }
 
+// output error message, exit.
+// foo.c:10: x = y + 1;
+//               ^ <error message>
 void verror_at(char *location, char *fmt, va_list va)
 {
-	fprintf(stderr, "%s\n", InputArgv);
+	// find line that in location
+	char *line = location;
+	// <line> decrements to the beginning of the current line
+	// line<CurLexStream, determines if the file is read at the beginning
+	// line[-1] ! = '\n', whether the previous character of the Line string \
+	// is a line break (at the end of the previous line)
+	while (CurLexStream < line && line[-1] != '\n')
+		line--;
 
-	int pos = location - InputArgv;
+	// end incremental line break to end of line
+	char *end = location;
+	while (*end != '\n')
+		end++;
+
+	// get line number
+	int line_no = 1;
+	for (char *p = CurLexStream; p < line; p++)
+		// if '\n', line_no +1
+		if (*p == '\n')
+			line_no++;
+
+	// output filename:error line
+	// ident reg the char number that output
+	int ident = fprintf(stderr, "%s:%d: ", SourceFile, line_no);
+	// out all char in line, exclude '\n'
+	fprintf(stderr, "%.*s\n", (int)(end - line), line);
+
+	int pos = location - line + ident;
 	fprintf(stderr, "%*s", pos, " ");
 	fprintf(stderr, "^ ");
 	vfprintf(stderr, fmt, va);
@@ -243,9 +274,10 @@ static void convert_keyword(struct Token *token)
 }
 
 // Terminator Parser
-struct Token *lexer(char *formula)
+struct Token *lexer(char *filename, char *formula)
 {
-	InputArgv = formula;
+	SourceFile = filename;
+	CurLexStream = formula;
 	struct Token head = {};
 	struct Token *cur = &head;
 
@@ -302,4 +334,51 @@ struct Token *lexer(char *formula)
 	// turn all of keyword that terminator into keyword
 	convert_keyword(head.next);
 	return head.next;
+}
+
+// return file content
+static char *read_file(char *path)
+{
+	FILE *fp;
+	if (strcmp(path, "-") == 0) {
+		// if filename = '-', read frome input
+		fp = stdin;
+	} else {
+		fp = fopen(path, "r");
+		if (!fp)
+			error_out("cannot open %s: %s", path, strerror(errno));
+	}
+
+	// the string that need to return
+	char *buf;
+	size_t buf_len;
+	FILE *out = open_memstream(&buf, &buf_len);
+
+	// read the whole file
+	while (true) {
+		char buf2[4096];
+		int N = fread(buf2, 1, sizeof(buf2), fp);
+		if (N == 0)
+			break;
+		fwrite(buf2, 1, N, out);
+	}
+
+	// read file over
+	if (fp != stdin)
+		fclose(fp);
+
+	// refulsh ouput stream
+	fflush(out);
+	// make sure end at '\n'
+	if (buf_len == 0 || buf[buf_len - 1] != '\n')
+		fputc('\n', out);
+	fputc('\0', out);
+	fclose(out);
+	return buf;
+}
+
+// file lexing
+struct Token *lexer_file(char *path)
+{
+	return lexer(path, read_file(path));
 }

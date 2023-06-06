@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -159,7 +160,7 @@ struct Type *array_of(struct Type *base, int len);
 // function type
 struct Type *func_type(struct Type *return_ty);
 // Lexical analysis
-struct Token *lexer(char *formula);
+struct Token *lexer_file(char *path);
 // Grammatical analysis
 struct Obj_Var *parse(struct Token *token);
 // Code Generation

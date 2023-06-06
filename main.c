@@ -7,7 +7,7 @@ int main(int argc, char *argv[])
 	}
 
 	// parse argv[1], gen token stream
-	struct Token *token = lexer(argv[1]);
+	struct Token *token = lexer_file(argv[1]);
 
 	// parse gen ast
 	struct Obj_Var *prog = parse(token);
