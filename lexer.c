@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <ctype.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -104,6 +105,17 @@ static bool is_ident_2(char c)
 	return is_ident_1(c) || ('0' <= c && c <= '9');
 }
 
+// return one bit turns hex to dec
+// hex digit = [0-9a-fA-F]
+static int from_hex(char c)
+{
+	if ('0' <= c && c <= '9')
+		return c - '0';
+	if ('a' <= c && c <= 'f')
+		return c - 'a' + 10;
+	return c - 'A' + 10;
+}
+
 static int read_punct(char *op_str)
 {
 	// case binary operator
@@ -140,6 +152,20 @@ static int read_escaped_char(char **new_pos, char *p)
 			if ('0' <= *p && *p <= '7')
 				c = (c << 3) + (*p++ - '0');
 		}
+		*new_pos = p;
+		return c;
+	}
+	if (*p == 'x') {
+		p++;
+		// Determine if the number is a hexadecimal number
+		if (!isxdigit(*p))
+			error_at(p, "invalid hex escape sequence");
+
+		int c = 0;
+		// Reads one or more hexadecimal digits
+		// \xWXYZ = ((W*16+X)*16+Y)*16+Z
+		for (; isxdigit(*p); p++)
+			c = (c << 4) + from_hex(*p);
 		*new_pos = p;
 		return c;
 	}
