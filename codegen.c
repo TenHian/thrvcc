@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <wchar.h>
 
+// output file
+static FILE *OutputFile;
 // used to record stack depth
 // used by func:
 //         static void push(void)
@@ -22,14 +24,14 @@ static struct Obj_Var *CurFn;
 static void gen_expr(struct AstNode *node);
 static void gen_stmt(struct AstNode *node);
 
-// output string and line break
+// output string to target file and line break
 static void println(char *fmt, ...)
 {
 	va_list va;
 	va_start(va, fmt);
-	vprintf(fmt, va);
+	vfprintf(OutputFile, fmt, va);
 	va_end(va);
-	printf("\n");
+	fprintf(OutputFile, "\n");
 }
 
 // code block count
@@ -456,8 +458,10 @@ void emit_text(struct Obj_Var *prog)
 	}
 }
 
-void codegen(struct Obj_Var *prog)
+void codegen(struct Obj_Var *prog, FILE *out)
 {
+	// set target file stream ptr
+	OutputFile = out;
 	// calculate Obj_Var offset
 	assign_lvar_offsets(prog);
 	// gen data

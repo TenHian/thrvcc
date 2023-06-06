@@ -164,4 +164,4 @@ struct Token *lexer_file(char *path);
 // Grammatical analysis
 struct Obj_Var *parse(struct Token *token);
 // Code Generation
-void codegen(struct Obj_Var *prog);
+void codegen(struct Obj_Var *prog, FILE *out);

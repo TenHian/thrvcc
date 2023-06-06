@@ -10,6 +10,7 @@ $(OBJS): thrvcc.h
 
 test: thrvcc
 	./test.sh
+	./test-driver.sh
 
 clean:
 	rm -f thrvcc *.o *.s tmp* a.out
