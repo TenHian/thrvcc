@@ -8,6 +8,18 @@
 #include <threads.h>
 #include <time.h>
 
+// local/global variable scope
+struct VarScope {
+	struct VarScope *next; // next variable scope
+	char *name; // variable scope name
+	struct Obj_Var *var; // variable
+};
+// block scope
+struct Scope {
+	struct Scope *next; // pointing to a higher-level scope
+	struct VarScope *vars; // variables in current scope
+};
+
 // all var add in this list while parse
 // means Local Variables
 // used by func:
@@ -16,6 +28,9 @@
 //         static struct Function *function(struct Token **rest, struct Token *token)
 struct Obj_Var *Locals;
 struct Obj_Var *Globals;
+
+// linked list for all scope
+static struct Scope *Scp = &(struct Scope){};
 
 // program = (functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
@@ -69,19 +84,30 @@ static struct AstNode *unary(struct Token **rest, struct Token *token);
 static struct AstNode *postfix(struct Token **rest, struct Token *token);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
 
+// enter scope
+static void enter_scope(void)
+{
+	struct Scope *sp = calloc(1, sizeof(struct Scope));
+	// link stack
+	sp->next = Scp;
+	Scp = sp;
+}
+
+// leave current scope
+static void leave_scope(void)
+{
+	Scp = Scp->next;
+}
+
 // find a local var by search name
 static struct Obj_Var *find_var(struct Token *token)
 {
-	// find var in Locals
-	for (struct Obj_Var *var = Locals; var; var = var->next)
-		if (strlen(var->name) == token->len &&
-		    !strncmp(token->location, var->name, token->len))
-			return var;
-	// find var in Globals
-	for (struct Obj_Var *var = Globals; var; var = var->next)
-		if (strlen(var->name) == token->len &&
-		    !strncmp(token->location, var->name, token->len))
-			return var;
+	// the more scopes matched first, the deeper
+	for (struct Scope *sp = Scp; sp; sp = sp->next)
+		// iterate over all variables in the scope
+		for (struct VarScope *vsp = sp->vars; vsp; vsp = vsp->next)
+			if (equal(token, vsp->name))
+				return vsp->var;
 	return NULL;
 }
 
@@ -127,12 +153,25 @@ static struct AstNode *new_var_astnode(struct Obj_Var *var, struct Token *token)
 	return node;
 }
 
+// push variable into current scope
+static struct VarScope *push_scope(char *name, struct Obj_Var *var)
+{
+	struct VarScope *vsp = calloc(1, sizeof(struct VarScope));
+	vsp->name = name;
+	vsp->var = var;
+	// link stack
+	vsp->next = Scp->vars;
+	Scp->vars = vsp;
+	return vsp;
+}
+
 // construct a new variable
 static struct Obj_Var *new_var(char *name, struct Type *type)
 {
 	struct Obj_Var *var = calloc(1, sizeof(struct Obj_Var));
 	var->name = name;
 	var->type = type;
+	push_scope(name, var);
 	return var;
 }
 
@@ -409,6 +448,10 @@ static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 	// unidirectional linked list
 	struct AstNode head = {};
 	struct AstNode *cur = &head;
+
+	// enter new scope
+	enter_scope();
+
 	// (declaration | stmt)* "}"
 	while (!equal(token, "}")) {
 		// declaration
@@ -421,6 +464,10 @@ static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 		// add var kind to nodes, after constructed AST
 		add_type(cur);
 	}
+
+	// leave current scope
+	leave_scope();
+
 	// mov stmt that in "{}" to parser
 	node->body = head.next;
 	*rest = token->next;
@@ -792,6 +839,8 @@ static struct Token *function(struct Token *token, struct Type *base_type)
 
 	// clean global Locals
 	Locals = NULL;
+	// enter new scope
+	enter_scope();
 	// func parameters
 	create_params_lvars(type->params);
 	fn->params = Locals;
@@ -800,6 +849,8 @@ static struct Token *function(struct Token *token, struct Type *base_type)
 	// func body store AST, Locals store var
 	fn->body = compoundstmt(&token, token);
 	fn->locals = Locals;
+	// leave current scope
+	leave_scope();
 	return token;
 }
 

@@ -294,5 +294,12 @@ assert 2 'int main() { /* return 1; */
 assert 2 'int main() { // return 1;
              return 2; }'
 
+# [38] Support for code block scopes
+echo [38]
+assert 2 'int main() { int x=2; { int x=3; } return x; }'
+assert 2 'int main() { int x=2; { int x=3; } { int y=4; return x; }}'
+assert 3 'int main() { int x=2; { x=3; } return x; }'
+assert 4 'int x; int main() { { x=4; } return x; }'
+
 # if all fine, echo OK
 echo OK
