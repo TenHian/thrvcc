@@ -2,8 +2,6 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <wchar.h>
 
 // output file
 static FILE *OutputFile;
@@ -67,7 +65,7 @@ static void pop(char *reg)
 static int align_to(int N, int align)
 {
 	// (0, align] return align
-	return (N + align + 1) / align * align;
+	return (N + align - 1) / align * align;
 }
 
 // calculate the absolute address of the given node
@@ -281,7 +279,7 @@ static void gen_stmt(struct AstNode *node)
 		println("\n# loop%d's .L.begin.%d segment label", C, C);
 		println(".L.begin.%d:", C);
 		// process loop's conditional stmt
-		println("\n# Conditional Statement %d", C);
+		println("# Conditional Statement %d", C);
 		if (node->condition) {
 			// gen loop's conditional stmt
 			gen_expr(node->condition);
@@ -356,7 +354,7 @@ static void emit_data(struct Obj_Var *prog)
 		if (var->is_function)
 			continue;
 
-		println("  # DATA segment label");
+		println("\n  # DATA segment label");
 		println("  .data");
 		// determine if there is a value
 		if (var->init_data) {
@@ -371,7 +369,7 @@ static void emit_data(struct Obj_Var *prog)
 					println("  .byte %d", c);
 			}
 		} else {
-			println("  # global varable %s", var->name);
+			println("\n  # global varable %s", var->name);
 			println("  .global %s", var->name);
 			println("%s:", var->name);
 			println("  # zero fill %d bits", var->type->size);
@@ -421,7 +419,7 @@ void emit_text(struct Obj_Var *prog)
 
 		// offset is the stack usable size
 		println("  # Allocate stack space");
-		println("  addi sp, sp, -%d", prog->stack_size);
+		println("  addi sp, sp, -%d", fn->stack_size);
 
 		int i_regs = 0;
 		for (struct Obj_Var *var = fn->params; var; var = var->next) {
@@ -436,13 +434,13 @@ void emit_text(struct Obj_Var *prog)
 		}
 
 		// Iterate through statements list, gen code
-		println("\n# =====%s segment body=====", fn->name);
+		println("# =====%s segment body=====", fn->name);
 		gen_stmt(fn->body);
 		assert(StackDepth == 0);
 
 		// epilogue
 		// output return seg label
-		println("\n# =====%s segment end=====", fn->name);
+		println("# =====%s segment end=====", fn->name);
 		println("# return segment label");
 		println(".L.return.%s:", fn->name);
 		// write back fp into sp
