@@ -282,6 +282,24 @@ struct Token *lexer(char *filename, char *formula)
 	struct Token *cur = &head;
 
 	while (*formula) {
+		// skip comment lines
+		if (is_start_with(formula, "//")) {
+			formula += 2;
+			while (*formula != '\n')
+				formula++;
+			continue;
+		}
+
+		//skip comment blocks
+		if (is_start_with(formula, "/*")) {
+			// find first "*/"
+			char *block_end = strstr(formula + 2, "*/");
+			if (!block_end)
+				error_at(formula, "unclosed block comment");
+			formula = block_end + 2;
+			continue;
+		}
+
 		// skip like whitespace, enter, tab
 		if (isspace(*formula)) {
 			++formula;
