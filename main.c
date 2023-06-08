@@ -81,6 +81,8 @@ int main(int argc, char *argv[])
 	struct Obj_Var *prog = parse(token);
 
 	FILE *out = open_file(TargetPath);
+	// .file, file number, file name
+	fprintf(out, ".file 1 \"%s\"\n", InputPath);
 	codegen(prog, out);
 
 	return 0;

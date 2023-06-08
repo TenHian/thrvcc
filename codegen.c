@@ -120,6 +120,9 @@ static void store(struct Type *type)
 
 static void gen_expr(struct AstNode *node)
 {
+	// .loc, file number, line number
+	println("  .loc 1 %d", node->tok->line_no);
+
 	switch (node->kind) {
 	case ND_NUM:
 		println("  # load %d into a0", node->val);
@@ -235,6 +238,9 @@ static void gen_expr(struct AstNode *node)
 // gen stmt
 static void gen_stmt(struct AstNode *node)
 {
+	// .loc, file number, line number
+	println("  .loc 1 %d", node->tok->line_no);
+
 	switch (node->kind) {
 	// if stmt
 	case ND_IF: {
