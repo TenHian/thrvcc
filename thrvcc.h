@@ -35,6 +35,7 @@ enum NodeKind {
 	ND_LE, // <=
 	// Assignment Operators
 	ND_ASSIGN,
+	ND_COMMA, // , comma
 	// Pointer Operators
 	ND_ADDR, // get address
 	ND_DEREF, // dereference

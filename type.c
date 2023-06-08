@@ -94,6 +94,10 @@ void add_type(struct AstNode *node)
 	case ND_VAR:
 		node->type = node->var->type;
 		return;
+	// make astnode type as rhs type
+	case ND_COMMA:
+		node->type = node->rhs->type;
+		return;
 	case ND_ADDR: {
 		struct Type *type = node->lhs->type;
 		// if left side is array, its pointer point to array base type

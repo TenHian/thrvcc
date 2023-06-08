@@ -87,6 +87,10 @@ static void gen_addr(struct AstNode *node)
 	case ND_DEREF:
 		gen_expr(node->lhs);
 		return;
+	case ND_COMMA:
+		gen_expr(node->lhs);
+		gen_addr(node->rhs);
+		return;
 	default:
 		break;
 	}
@@ -153,6 +157,10 @@ static void gen_expr(struct AstNode *node)
 	case ND_STMT_EXPR:
 		for (struct AstNode *nd = node->body; nd; nd = nd->next)
 			gen_stmt(nd);
+		return;
+	case ND_COMMA:
+		gen_expr(node->lhs);
+		gen_expr(node->rhs);
 		return;
 	case ND_FUNCALL: {
 		// args count

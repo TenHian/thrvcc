@@ -50,7 +50,7 @@ static struct Scope *Scp = &(struct Scope){};
 //      | "{" compoundStmt
 //      | exprStmt
 // expr stmt = expr? ;
-// expr = assign
+// expr = assign ("," expr)?
 // assign = equality ("=" assign)?
 // equality = relational ("==" | "!=")
 // relational = add ("<" | "<=" | ">" | ">=")
@@ -490,10 +490,17 @@ static struct AstNode *exprstmt(struct Token **rest, struct Token *token)
 	return node;
 }
 
-// expr = assign
+// expr = assign ("," expr)?
 static struct AstNode *expr(struct Token **rest, struct Token *token)
 {
-	return assign(rest, token);
+	struct AstNode *node = assign(&token, token);
+
+	if (equal(token, ","))
+		return new_binary_tree_node(ND_COMMA, node,
+					    expr(rest, token->next), token);
+
+	*rest = token;
+	return node;
 }
 
 // assign = equality
