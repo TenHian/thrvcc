@@ -91,6 +91,12 @@ static void gen_addr(struct AstNode *node)
 		gen_expr(node->lhs);
 		gen_addr(node->rhs);
 		return;
+	case ND_MEMBER:
+		gen_addr(node->lhs);
+		println("  # calculate offset of struct members");
+		println("  li t0, %d", node->member->offset);
+		println("  add a0, a0, t0");
+		return;
 	default:
 		break;
 	}
@@ -138,6 +144,7 @@ static void gen_expr(struct AstNode *node)
 		println("  neg a0, a0");
 		return;
 	case ND_VAR:
+	case ND_MEMBER:
 		gen_addr(node);
 		load(node->type);
 		return;

@@ -34,7 +34,7 @@ static struct Scope *Scp = &(struct Scope){};
 
 // program = (functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
-// declspec = "char" | "int"
+// declspec = "char" | "int" | structDecl
 // declarator = "*"* ident typeSuffix
 // typeSuffix = "(" funcParams | "[" num "]" | typeSuffix | ε
 // funcParams = (param ("," param)*)? ")"
@@ -57,7 +57,9 @@ static struct Scope *Scp = &(struct Scope){};
 // add = mul ("+" | "-")
 // mul = unary ("*" | "/")
 // unary = ("+" | "-" | "*" | "&") unary | postfix
-// postfix = primary ("[" expr "]")*
+// structMembers = (declspec declarator ( "," declarator)* ";")*
+// structDecl = "{" structMembers
+// postfix = primary ("[" expr "]" | "." ident)*
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
 //         | "sizeof" unary
@@ -80,6 +82,7 @@ static struct AstNode *relational(struct Token **rest, struct Token *token);
 static struct AstNode *expr(struct Token **rest, struct Token *token);
 static struct AstNode *add(struct Token **rest, struct Token *token);
 static struct AstNode *mul(struct Token **rest, struct Token *token);
+static struct Type *struct_decl(struct Token **rest, struct Token *token);
 static struct AstNode *unary(struct Token **rest, struct Token *token);
 static struct AstNode *postfix(struct Token **rest, struct Token *token);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
@@ -232,7 +235,7 @@ static int get_number(struct Token *token)
 	return token->val;
 }
 
-// declspec = "char" | "int"
+// declspec = "char" | "int" | structDecl
 // declarator specifier
 static struct Type *declspec(struct Token **rest, struct Token *token)
 {
@@ -243,8 +246,17 @@ static struct Type *declspec(struct Token **rest, struct Token *token)
 	}
 
 	// "int"
-	*rest = skip(token, "int");
-	return TyInt;
+	if (equal(token, "int")) {
+		*rest = token->next;
+		return TyInt;
+	}
+
+	// structDecl
+	if (equal(token, "struct"))
+		return struct_decl(rest, token->next);
+
+	error_token(token, "typename expected");
+	return NULL;
 }
 
 // funcParams = (param ("," param)*)? ")"
@@ -360,7 +372,8 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token)
 // determine if it is a type name
 static bool is_typename(struct Token *token)
 {
-	return equal(token, "char") || equal(token, "int");
+	return equal(token, "char") || equal(token, "int") ||
+	       equal(token, "struct");
 }
 
 // parse stmt
@@ -713,23 +726,104 @@ static struct AstNode *unary(struct Token **rest, struct Token *token)
 	return postfix(rest, token);
 }
 
-// postfix = primary ("[" expr "]")*
+// structMembers = (declspec declarator (","  declarator)* ";")*
+static void struct_members(struct Token **rest, struct Token *token,
+			   struct Type *type)
+{
+	struct Member head = {};
+	struct Member *cur = &head;
+
+	while (!equal(token, "}")) {
+		// declspec
+		struct Type *base_ty = declspec(&token, token);
+		int first = true;
+
+		while (!consume(&token, token, ";")) {
+			if (!first)
+				token = skip(token, ",");
+			first = false;
+
+			struct Member *mem = calloc(1, sizeof(struct Member));
+			// declarator
+			mem->type = declarator(&token, token, base_ty);
+			mem->name = mem->type->name;
+			cur = cur->next = mem;
+		}
+	}
+	*rest = token->next;
+	type->member = head.next;
+}
+
+// structDecl = "{" structMembers
+static struct Type *struct_decl(struct Token **rest, struct Token *token)
+{
+	token = skip(token, "{");
+
+	// construct a struct
+	struct Type *ty = calloc(1, sizeof(struct Type));
+	ty->kind = TY_STRUCT;
+	struct_members(rest, token, ty);
+
+	// caculate the offset of struct members
+	int offset = 0;
+	for (struct Member *mem = ty->member; mem; mem = mem->next) {
+		mem->offset = offset;
+		offset += mem->type->size;
+	}
+	ty->size = offset;
+
+	return ty;
+}
+
+// get struct member
+static struct Member *get_struct_member(struct Type *type, struct Token *token)
+{
+	for (struct Member *mem = type->member; mem; mem = mem->next)
+		if (mem->name->len == token->len &&
+		    !strncmp(mem->name->location, token->location, token->len))
+			return mem;
+	error_token(token, "no such member");
+	return NULL;
+}
+
+// construct struct member node
+static struct AstNode *struct_ref(struct AstNode *lhs, struct Token *token)
+{
+	add_type(lhs);
+	if (lhs->type->kind != TY_STRUCT)
+		error_token(lhs->tok, "not a struct");
+
+	struct AstNode *node = new_unary_tree_node(ND_MEMBER, lhs, token);
+	node->member = get_struct_member(lhs->type, token);
+	return node;
+}
+
+// postfix = primary ("[" expr "]" | "." ident)*
 static struct AstNode *postfix(struct Token **rest, struct Token *token)
 {
 	// primary
 	struct AstNode *node = primary(&token, token);
 
 	// ("[" expr "]")*
-	while (equal(token, "[")) {
-		// x[y] equal to *(x+y)
-		struct Token *start = token;
-		struct AstNode *idx = expr(&token, token->next);
-		token = skip(token, "]");
-		node = new_unary_tree_node(ND_DEREF, new_add(node, idx, start),
-					   start);
+	while (true) {
+		if (equal(token, "[")) {
+			// x[y] equal to *(x+y)
+			struct Token *start = token;
+			struct AstNode *idx = expr(&token, token->next);
+			token = skip(token, "]");
+			node = new_unary_tree_node(
+				ND_DEREF, new_add(node, idx, start), start);
+			continue;
+		}
+
+		if (equal(token, ".")) {
+			node = struct_ref(node, token->next);
+			token = token->next->next;
+			continue;
+		}
+		*rest = token;
+		return node;
 	}
-	*rest = token;
-	return node;
 }
 
 // parse func call

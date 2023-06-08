@@ -36,6 +36,7 @@ enum NodeKind {
 	// Assignment Operators
 	ND_ASSIGN,
 	ND_COMMA, // , comma
+	ND_MEMBER, // . struct member access
 	// Pointer Operators
 	ND_ADDR, // get address
 	ND_DEREF, // dereference
@@ -57,6 +58,7 @@ enum TypeKind {
 	TY_PTR, // pointer
 	TY_FUNC, // function
 	TY_ARRAY, // array
+	TY_STRUCT, // struct
 };
 
 struct Token {
@@ -83,10 +85,21 @@ struct Type {
 	// array
 	int array_len; // len of array, array items count
 
+	// struct
+	struct Member *member;
+
 	// function type
 	struct Type *return_type; // function return type
 	struct Type *params; // parameters
 	struct Type *next; // next type
+};
+
+// struct member
+struct Member {
+	struct Member *next;
+	struct Type *type;
+	struct Token *name;
+	int offset;
 };
 
 // variable or function
@@ -130,6 +143,9 @@ struct AstNode {
 
 	// code block or statement express(GNU)
 	struct AstNode *body;
+
+	// struct member access
+	struct Member *member; // struct member
 
 	// func call
 	char *func_name; // func name
