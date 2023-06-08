@@ -66,6 +66,8 @@ struct Token {
 	int len;
 	struct Type *type;
 	char *str;
+
+	int line_no; // line number
 };
 
 struct Type {
@@ -140,7 +142,7 @@ extern struct Type *TyChar;
 extern struct Type *TyInt;
 
 void error_out(char *fmt, ...);
-void verror_at(char *location, char *fmt, va_list va);
+void verror_at(int line_no, char *location, char *fmt, va_list va);
 void error_at(char *location, char *fmt, ...);
 void error_token(struct Token *token, char *fmt, ...);
 // string format

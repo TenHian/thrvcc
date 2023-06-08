@@ -21,7 +21,7 @@ void error_out(char *fmt, ...)
 // output error message, exit.
 // foo.c:10: x = y + 1;
 //               ^ <error message>
-void verror_at(char *location, char *fmt, va_list va)
+void verror_at(int line_no, char *location, char *fmt, va_list va)
 {
 	// find line that in location
 	char *line = location;
@@ -37,13 +37,6 @@ void verror_at(char *location, char *fmt, va_list va)
 	while (*end != '\n')
 		end++;
 
-	// get line number
-	int line_no = 1;
-	for (char *p = CurLexStream; p < line; p++)
-		// if '\n', line_no +1
-		if (*p == '\n')
-			line_no++;
-
 	// output filename:error line
 	// ident reg the char number that output
 	int ident = fprintf(stderr, "%s:%d: ", SourceFile, line_no);
@@ -51,7 +44,7 @@ void verror_at(char *location, char *fmt, va_list va)
 	fprintf(stderr, "%.*s\n", (int)(end - line), line);
 
 	int pos = location - line + ident;
-	fprintf(stderr, "%*s", pos, " ");
+	fprintf(stderr, "%*s", pos, "");
 	fprintf(stderr, "^ ");
 	vfprintf(stderr, fmt, va);
 	fprintf(stderr, "\n");
@@ -60,9 +53,14 @@ void verror_at(char *location, char *fmt, va_list va)
 
 void error_at(char *location, char *fmt, ...)
 {
+	int line_no = 1;
+	for (char *p = CurLexStream; p < location; p++)
+		if (*p == '\n')
+			line_no++;
+
 	va_list va;
 	va_start(va, fmt);
-	verror_at(location, fmt, va);
+	verror_at(line_no, location, fmt, va);
 	exit(1);
 }
 
@@ -70,7 +68,7 @@ void error_token(struct Token *token, char *fmt, ...)
 {
 	va_list va;
 	va_start(va, fmt);
-	verror_at(token->location, fmt, va);
+	verror_at(token->line_no, token->location, fmt, va);
 	exit(1);
 }
 
@@ -273,6 +271,22 @@ static void convert_keyword(struct Token *token)
 	}
 }
 
+// add line number for all token
+static void add_line_numbers(struct Token *token)
+{
+	char *p = CurLexStream;
+	int line_number = 1;
+
+	do {
+		if (p == token->location) {
+			token->line_no = line_number;
+			token = token->next;
+		}
+		if (*p == '\n')
+			line_number++;
+	} while (*p++);
+}
+
 // Terminator Parser
 struct Token *lexer(char *filename, char *formula)
 {
@@ -349,6 +363,8 @@ struct Token *lexer(char *filename, char *formula)
 	}
 
 	cur->next = new_token(TK_EOF, formula, formula);
+	// add line number for all token
+	add_line_numbers(head.next);
 	// turn all of keyword that terminator into keyword
 	convert_keyword(head.next);
 	return head.next;
