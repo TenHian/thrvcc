@@ -44,6 +44,29 @@ int main()
 		       x.b[3];
 	       }));
 
+	// [54] Support for struct and union assignment
+	printf("[54] Support for struct and union assignment\n");
+	ASSERT(3, ({
+		       union {
+			       int a, b;
+		       } x, y;
+		       x.a = 3;
+		       y.a = 5;
+		       y = x;
+		       y.a;
+	       }));
+	ASSERT(3, ({
+		       union {
+			       struct {
+				       int a, b;
+			       } c;
+		       } x, y;
+		       x.c.b = 3;
+		       y.c.b = 5;
+		       y = x;
+		       y.c.b;
+	       }));
+
 	printf("OK\n");
 	return 0;
 }

@@ -106,7 +106,8 @@ static void gen_addr(struct AstNode *node)
 // load the value that a0 point to
 static void load(struct Type *type)
 {
-	if (type->kind == TY_ARRAY)
+	if (type->kind == TY_ARRAY || type->kind == TY_STRUCT ||
+	    type->kind == TY_UNION)
 		return;
 
 	println("  # read the addr that sotred in a0, mov its value into a0");
@@ -120,6 +121,20 @@ static void load(struct Type *type)
 static void store(struct Type *type)
 {
 	pop("a1");
+
+	if (type->kind == TY_STRUCT || type->kind == TY_UNION) {
+		println("  # assign for %s",
+			type->kind == TY_STRUCT ? "struct" : "union");
+		for (int i = 0; i < type->size; ++i) {
+			println("  li t0, %d", i);
+			println("  add t0, a0, t0");
+			println("  lb t1, 0(t0)");
+			println("  li t0, %d", i);
+			println("  add t0, a1, t0");
+			println("  sb t1, 0(t0)");
+		}
+		return;
+	}
 
 	println("  # write the value that stored in a0 into the address stored in a1");
 	if (type->size == 1)
