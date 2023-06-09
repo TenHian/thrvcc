@@ -157,6 +157,9 @@ struct AstNode {
 	int val;
 };
 
+// when error at thrvcc source code, print file_name and line_no
+#define unreachable() error_out("internal error at %s:%d", __FILE__, __LINE__)
+
 extern struct Type *TyChar;
 extern struct Type *TyInt;
 

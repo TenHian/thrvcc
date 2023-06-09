@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 struct Type *TyChar = &(struct Type){ TY_CHAR, 1, 1 };
-struct Type *TyInt = &(struct Type){ TY_INT, 8, 8 };
+struct Type *TyInt = &(struct Type){ TY_INT, 4, 4 };
 
 static struct Type *new_type(enum TypeKind ty_kind, int size, int align)
 {

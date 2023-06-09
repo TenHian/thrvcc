@@ -51,46 +51,38 @@ int main()
 	// [30] Support 'sizeof' operator
 	printf("[30] Support 'sizeof' operator\n");
 	ASSERT(8, ({
-		       int x;
-		       sizeof(x);
-	       }));
-	ASSERT(8, ({
-		       int x;
-		       sizeof x;
-	       }));
-	ASSERT(8, ({
 		       int *x;
 		       sizeof(x);
 	       }));
-	ASSERT(32, ({
+	ASSERT(16, ({
 		       int x[4];
 		       sizeof(x);
 	       }));
-	ASSERT(96, ({
+	ASSERT(48, ({
 		       int x[3][4];
 		       sizeof(x);
 	       }));
-	ASSERT(32, ({
+	ASSERT(16, ({
 		       int x[3][4];
 		       sizeof(*x);
 	       }));
-	ASSERT(8, ({
+	ASSERT(4, ({
 		       int x[3][4];
 		       sizeof(**x);
 	       }));
-	ASSERT(9, ({
+	ASSERT(5, ({
 		       int x[3][4];
 		       sizeof(**x) + 1;
 	       }));
-	ASSERT(9, ({
+	ASSERT(5, ({
 		       int x[3][4];
 		       sizeof **x + 1;
 	       }));
-	ASSERT(8, ({
+	ASSERT(4, ({
 		       int x[3][4];
 		       sizeof(**x + 1);
 	       }));
-	ASSERT(8, ({
+	ASSERT(4, ({
 		       int x = 1;
 		       sizeof(x = 2);
 	       }));
@@ -134,8 +126,8 @@ int main()
 		       g2[3];
 	       }));
 
-	ASSERT(8, sizeof(g1));
-	ASSERT(32, sizeof(g2));
+	ASSERT(4, sizeof(g1));
+	ASSERT(16, sizeof(g2));
 
 	// [33] Support type 'char'
 	printf("[33] Support type 'char'\n");
@@ -190,7 +182,7 @@ int main()
 
 	// [50] Align local variables
 	printf("[50] Align local variables\n");
-	ASSERT(15, ({
+	ASSERT(7, ({
 		       int x;
 		       int y;
 		       char z;
@@ -205,6 +197,17 @@ int main()
 		       char *a = &y;
 		       char *b = &z;
 		       b - a;
+	       }));
+
+	// [55] Change the size of int from 8 bytes to 4 bytes
+	printf("[55] Change the size of int from 8 bytes to 4 bytes\n");
+	ASSERT(4, ({
+		       int x;
+		       sizeof(x);
+	       }));
+	ASSERT(4, ({
+		       int x;
+		       sizeof x;
 	       }));
 
 	printf("OK\n");

@@ -113,6 +113,8 @@ static void load(struct Type *type)
 	println("  # read the addr that sotred in a0, mov its value into a0");
 	if (type->size == 1)
 		println("  lb a0, 0(a0)");
+	else if (type->size == 4)
+		println("  lw a0, 0(a0)");
 	else
 		println("  ld a0, 0(a0)");
 }
@@ -139,6 +141,8 @@ static void store(struct Type *type)
 	println("  # write the value that stored in a0 into the address stored in a1");
 	if (type->size == 1)
 		println("  sb a0, 0(a1)");
+	else if (type->size == 4)
+		println("  sw a0, 0(a1)");
 	else
 		println("  sd a0, 0(a1)");
 }
@@ -416,6 +420,25 @@ static void emit_data(struct Obj_Var *prog)
 	}
 }
 
+// push register value into stack
+static void reg2stack(int reg, int offset, int size)
+{
+	println("  # push register %s value into %d(fp) stack", ArgsReg[reg],
+		offset);
+	switch (size) {
+	case 1:
+		println("  sb %s, %d(fp)", ArgsReg[reg], offset);
+		return;
+	case 4:
+		println("  sw %s, %d(fp)", ArgsReg[reg], offset);
+		return;
+	case 8:
+		println("  sd %s, %d(fp)", ArgsReg[reg], offset);
+		return;
+	}
+	unreachable();
+}
+
 void emit_text(struct Obj_Var *prog)
 {
 	// codegen for every single function
@@ -460,16 +483,8 @@ void emit_text(struct Obj_Var *prog)
 		println("  addi sp, sp, -%d", fn->stack_size);
 
 		int i_regs = 0;
-		for (struct Obj_Var *var = fn->params; var; var = var->next) {
-			println("  # push reg %s value into %s stack address",
-				ArgsReg[i_regs], var->name);
-			if (var->type->size == 1)
-				println("  sb %s, %d(fp)", ArgsReg[i_regs++],
-					var->offset);
-			else
-				println("  sd %s, %d(fp)", ArgsReg[i_regs++],
-					var->offset);
-		}
+		for (struct Obj_Var *var = fn->params; var; var = var->next)
+			reg2stack(i_regs++, var->offset, var->type->size);
 
 		// Iterate through statements list, gen code
 		println("# =====%s segment body=====", fn->name);

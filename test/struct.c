@@ -122,38 +122,38 @@ int main()
 		       x.a.b;
 	       }));
 
-	ASSERT(8, ({
+	ASSERT(4, ({
 		       struct {
 			       int a;
 		       } x;
 		       sizeof(x);
 	       }));
-	ASSERT(16, ({
+	ASSERT(8, ({
 		       struct {
 			       int a;
 			       int b;
 		       } x;
 		       sizeof(x);
 	       }));
-	ASSERT(16, ({
+	ASSERT(8, ({
 		       struct {
 			       int a, b;
 		       } x;
 		       sizeof(x);
 	       }));
-	ASSERT(24, ({
+	ASSERT(12, ({
 		       struct {
 			       int a[3];
 		       } x;
 		       sizeof(x);
 	       }));
-	ASSERT(32, ({
+	ASSERT(16, ({
 		       struct {
 			       int a;
 		       } x[4];
 		       sizeof(x);
 	       }));
-	ASSERT(48, ({
+	ASSERT(24, ({
 		       struct {
 			       int a[3];
 		       } x[2];
@@ -174,14 +174,14 @@ int main()
 
 	// [49] Aligning structure member variables
 	printf("[49] Aligning structure member variables\n");
-	ASSERT(16, ({
+	ASSERT(8, ({
 		       struct {
 			       char a;
 			       int b;
 		       } x;
 		       sizeof(x);
 	       }));
-	ASSERT(16, ({
+	ASSERT(8, ({
 		       struct {
 			       int a;
 			       char b;
@@ -191,7 +191,7 @@ int main()
 
 	// [51] Support for structure labels
 	printf("[51] Support for structure labels\n");
-	ASSERT(16, ({
+	ASSERT(8, ({
 		       struct t {
 			       int a;
 			       int b;
@@ -199,7 +199,7 @@ int main()
 		       struct t y;
 		       sizeof(y);
 	       }));
-	ASSERT(16, ({
+	ASSERT(8, ({
 		       struct t {
 			       int a;
 			       int b;
@@ -286,6 +286,63 @@ int main()
 		       x.a = 5;
 		       y = x;
 		       y.a;
+	       }));
+
+	// [55] Change the size of int from 8 bytes to 4 bytes
+	printf("[55] Change the size of int from 8 bytes to 4 bytes\n");
+	ASSERT(3, ({
+		       struct {
+			       int a, b;
+		       } x, y;
+		       x.a = 3;
+		       y = x;
+		       y.a;
+	       }));
+	ASSERT(7, ({
+		       struct t {
+			       int a, b;
+		       };
+		       struct t x;
+		       x.a = 7;
+		       struct t y;
+		       struct t *z = &y;
+		       *z = x;
+		       y.a;
+	       }));
+	ASSERT(7, ({
+		       struct t {
+			       int a, b;
+		       };
+		       struct t x;
+		       x.a = 7;
+		       struct t y, *p = &x, *q = &y;
+		       *q = *p;
+		       y.a;
+	       }));
+	ASSERT(5, ({
+		       struct t {
+			       char a, b;
+		       } x, y;
+		       x.a = 5;
+		       y = x;
+		       y.a;
+	       }));
+
+	ASSERT(8, ({
+		       struct t {
+			       int a;
+			       int b;
+		       } x;
+		       struct t y;
+		       sizeof(y);
+	       }));
+	ASSERT(8, ({
+		       struct t {
+			       int a;
+			       int b;
+		       };
+		       struct t y;
+		       sizeof(y);
 	       }));
 
 	printf("OK\n");
