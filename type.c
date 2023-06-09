@@ -1,8 +1,17 @@
 #include "thrvcc.h"
 #include <stdlib.h>
 
-struct Type *TyChar = &(struct Type){ TY_CHAR, 1 };
-struct Type *TyInt = &(struct Type){ TY_INT, 8 };
+struct Type *TyChar = &(struct Type){ TY_CHAR, 1, 1 };
+struct Type *TyInt = &(struct Type){ TY_INT, 8, 8 };
+
+static struct Type *new_type(enum TypeKind ty_kind, int size, int align)
+{
+	struct Type *type = calloc(1, sizeof(struct Type));
+	type->kind = ty_kind;
+	type->size = size;
+	type->align = align;
+	return type;
+}
 
 bool is_integer(struct Type *type)
 {
@@ -19,10 +28,8 @@ struct Type *copy_type(struct Type *type)
 
 struct Type *pointer_to(struct Type *base)
 {
-	struct Type *type = calloc(1, sizeof(struct Type));
-	type->kind = TY_PTR;
+	struct Type *type = new_type(TY_PTR, 8, 8);
 	type->base = base;
-	type->size = 8;
 	return type;
 }
 
@@ -38,10 +45,7 @@ struct Type *func_type(struct Type *return_ty)
 // construct array type, pass (array base type, items count)
 struct Type *array_of(struct Type *base, int len)
 {
-	struct Type *type = calloc(1, sizeof(struct Type));
-	type->kind = TY_ARRAY;
-	// array size = all items size pulse
-	type->size = base->size * len;
+	struct Type *type = new_type(TY_ARRAY, base->size * len, base->align);
 	type->base = base;
 	type->array_len = len;
 	return type;

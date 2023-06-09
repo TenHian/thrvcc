@@ -76,6 +76,7 @@ struct Token {
 struct Type {
 	enum TypeKind kind; // kind
 	int size; // return value of sizeof()
+	int align; // alignment
 
 	// pointer
 	struct Type *base; // the kind pointed to
@@ -178,6 +179,7 @@ void add_type(struct AstNode *node);
 struct Type *array_of(struct Type *base, int len);
 // function type
 struct Type *func_type(struct Type *return_ty);
+int align_to(int N, int Align);
 // Lexical analysis
 struct Token *lexer_file(char *path);
 // Grammatical analysis

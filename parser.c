@@ -763,14 +763,19 @@ static struct Type *struct_decl(struct Token **rest, struct Token *token)
 	struct Type *ty = calloc(1, sizeof(struct Type));
 	ty->kind = TY_STRUCT;
 	struct_members(rest, token, ty);
+	ty->align = 1;
 
 	// caculate the offset of struct members
 	int offset = 0;
 	for (struct Member *mem = ty->member; mem; mem = mem->next) {
+		offset = align_to(offset, mem->type->align);
 		mem->offset = offset;
 		offset += mem->type->size;
+
+		if (ty->align < mem->type->align)
+			ty->align = mem->type->align;
 	}
-	ty->size = offset;
+	ty->size = align_to(offset, ty->align);
 
 	return ty;
 }

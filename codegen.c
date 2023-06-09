@@ -62,10 +62,10 @@ static void pop(char *reg)
 }
 
 // align to an integer multiple of align
-static int align_to(int N, int align)
+int align_to(int N, int Align)
 {
 	// (0, align] return align
-	return (N + align - 1) / align * align;
+	return (N + Align - 1) / Align * Align;
 }
 
 // calculate the absolute address of the given node
