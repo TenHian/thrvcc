@@ -361,6 +361,8 @@ static void assign_lvar_offsets(struct Obj_Var *prog)
 		for (struct Obj_Var *var = fn->locals; var; var = var->next) {
 			// alloc space to every var
 			offset += var->type->size;
+			// Aligning variables
+			offset = align_to(offset, var->type->align);
 			// assign a offset to every var, aka address in stack
 			var->offset = -offset;
 		}

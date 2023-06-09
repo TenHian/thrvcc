@@ -188,6 +188,25 @@ int main()
 		       x;
 	       }));
 
+	// [50] Align local variables
+	printf("[50] Align local variables\n");
+	ASSERT(15, ({
+		       int x;
+		       int y;
+		       char z;
+		       char *a = &y;
+		       char *b = &z;
+		       b - a;
+	       }));
+	ASSERT(1, ({
+		       int x;
+		       char y;
+		       int z;
+		       char *a = &y;
+		       char *b = &z;
+		       b - a;
+	       }));
+
 	printf("OK\n");
 	return 0;
 }
