@@ -4,6 +4,7 @@
 struct Type *TyChar = &(struct Type){ TY_CHAR, 1, 1 };
 struct Type *TyInt = &(struct Type){ TY_INT, 4, 4 };
 struct Type *TyLong = &(struct Type){ TY_LONG, 8, 8 };
+struct Type *TyShort = &(struct Type){ TY_SHORT, 2, 2 };
 
 static struct Type *new_type(enum TypeKind ty_kind, int size, int align)
 {
@@ -16,8 +17,8 @@ static struct Type *new_type(enum TypeKind ty_kind, int size, int align)
 
 bool is_integer(struct Type *type)
 {
-	return type->kind == TY_CHAR || type->kind == TY_INT ||
-	       type->kind == TY_LONG;
+	return type->kind == TY_CHAR || type->kind == TY_SHORT ||
+	       type->kind == TY_INT || type->kind == TY_LONG;
 }
 
 // copy type

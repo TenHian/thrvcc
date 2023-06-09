@@ -217,6 +217,13 @@ int main()
 		       sizeof(x);
 	       }));
 
+	// [57] Support for short type
+	printf("[57] Support for short type\n");
+	ASSERT(2, ({
+		       short x;
+		       sizeof(x);
+	       }));
+
 	printf("OK\n");
 	return 0;
 }

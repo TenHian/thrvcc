@@ -43,6 +43,11 @@ int sub_long(long a, long b, long c)
 	return a - b - c;
 }
 
+int sub_short(short a, short b, short c)
+{
+	return a - b - c;
+}
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -66,6 +71,10 @@ int main()
 	// [56] Support for long type
 	printf("[56] Support for long type\n");
 	ASSERT(2147483648, sub_long(2147483650, 1, 1));
+
+	// [57] Support for short type
+	printf("[57] Support for short type\n");
+	ASSERT(1, sub_short(4, 2, 1));
 
 	printf("OK\n");
 	return 0;

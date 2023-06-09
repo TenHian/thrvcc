@@ -55,6 +55,7 @@ enum NodeKind {
 
 enum TypeKind {
 	TY_CHAR, // char
+	TY_SHORT, // short integer
 	TY_INT, // integer
 	TY_LONG, // long integer
 	TY_PTR, // pointer
@@ -165,6 +166,7 @@ struct AstNode {
 extern struct Type *TyChar;
 extern struct Type *TyInt;
 extern struct Type *TyLong;
+extern struct Type *TyShort;
 
 void error_out(char *fmt, ...);
 void verror_at(int line_no, char *location, char *fmt, va_list va);

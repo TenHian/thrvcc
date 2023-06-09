@@ -113,6 +113,8 @@ static void load(struct Type *type)
 	println("  # read the addr that sotred in a0, mov its value into a0");
 	if (type->size == 1)
 		println("  lb a0, 0(a0)");
+	else if (type->size == 2)
+		println("  lh a0, 0(a0)");
 	else if (type->size == 4)
 		println("  lw a0, 0(a0)");
 	else
@@ -141,6 +143,8 @@ static void store(struct Type *type)
 	println("  # write the value that stored in a0 into the address stored in a1");
 	if (type->size == 1)
 		println("  sb a0, 0(a1)");
+	else if (type->size == 2)
+		println("  sh a0, 0(a1)");
 	else if (type->size == 4)
 		println("  sw a0, 0(a1)");
 	else
@@ -428,6 +432,9 @@ static void reg2stack(int reg, int offset, int size)
 	switch (size) {
 	case 1:
 		println("  sb %s, %d(fp)", ArgsReg[reg], offset);
+		return;
+	case 2:
+		println("  sh %s, %d(fp)", ArgsReg[reg], offset);
 		return;
 	case 4:
 		println("  sw %s, %d(fp)", ArgsReg[reg], offset);

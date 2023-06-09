@@ -46,7 +46,7 @@ static struct Scope *Scp = &(struct Scope){};
 
 // program = (functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
-// declspec = "char" | "int" | "long" | structDecl | unionDecl
+// declspec = "char" | "short" | "int" | "long" | structDecl | unionDecl
 // declarator = "*"* ident typeSuffix
 // typeSuffix = "(" funcParams | "[" num "]" | typeSuffix | ε
 // funcParams = (param ("," param)*)? ")"
@@ -269,7 +269,7 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 	Scp->tags = tsp;
 }
 
-// declspec = "char" | "int" | "long" | structDecl | unionDecl
+// declspec = "char" | "short" | "int" | "long" | structDecl | unionDecl
 // declarator specifier
 static struct Type *declspec(struct Token **rest, struct Token *token)
 {
@@ -277,6 +277,12 @@ static struct Type *declspec(struct Token **rest, struct Token *token)
 	if (equal(token, "char")) {
 		*rest = token->next;
 		return TyChar;
+	}
+
+	// "short"
+	if (equal(token, "short")) {
+		*rest = token->next;
+		return TyShort;
 	}
 
 	// "int"
@@ -416,9 +422,9 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token)
 // determine if it is a type name
 static bool is_typename(struct Token *token)
 {
-	return equal(token, "char") || equal(token, "int") ||
-	       equal(token, "long") || equal(token, "struct") ||
-	       equal(token, "union");
+	return equal(token, "char") || equal(token, "short") ||
+	       equal(token, "int") || equal(token, "long") ||
+	       equal(token, "struct") || equal(token, "union");
 }
 
 // parse stmt
