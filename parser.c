@@ -14,10 +14,21 @@ struct VarScope {
 	char *name; // variable scope name
 	struct Obj_Var *var; // variable
 };
+
+// scope of structure label
+struct TagScope {
+	struct TagScope *next;
+	char *name;
+	struct Type *type;
+};
+
 // block scope
 struct Scope {
 	struct Scope *next; // pointing to a higher-level scope
+
+	// scope type : var scope or tag scope
 	struct VarScope *vars; // variables in current scope
+	struct TagScope *tags; // label of the structure in the current scope
 };
 
 // all var add in this list while parse
@@ -111,6 +122,16 @@ static struct Obj_Var *find_var(struct Token *token)
 		for (struct VarScope *vsp = sp->vars; vsp; vsp = vsp->next)
 			if (equal(token, vsp->name))
 				return vsp->var;
+	return NULL;
+}
+
+// find a tag by search Token
+static struct Type *find_tag(struct Token *token)
+{
+	for (struct Scope *sp = Scp; sp; sp = sp->next)
+		for (struct TagScope *tsp = sp->tags; tsp; tsp = tsp->next)
+			if (equal(token, tsp->name))
+				return tsp->type;
 	return NULL;
 }
 
@@ -233,6 +254,15 @@ static int get_number(struct Token *token)
 	if (token->kind != TK_NUM)
 		error_token(token, "expected a number");
 	return token->val;
+}
+
+static void push_tag_scope(struct Token *token, struct Type *type)
+{
+	struct TagScope *tsp = calloc(1, sizeof(struct TagScope));
+	tsp->name = strndup(token->location, token->len);
+	tsp->type = type;
+	tsp->next = Scp->tags;
+	Scp->tags = tsp;
 }
 
 // declspec = "char" | "int" | structDecl
@@ -757,12 +787,25 @@ static void struct_members(struct Token **rest, struct Token *token,
 // structDecl = "{" structMembers
 static struct Type *struct_decl(struct Token **rest, struct Token *token)
 {
-	token = skip(token, "{");
+	// read structure label
+	struct Token *tag = NULL;
+	if (token->kind == TK_IDENT) {
+		tag = token;
+		token = token->next;
+	}
+
+	if (tag && !equal(token, "{")) {
+		struct Type *ty = find_tag(tag);
+		if (!ty)
+			error_token(tag, "unknown struct type");
+		*rest = token;
+		return ty;
+	}
 
 	// construct a struct
 	struct Type *ty = calloc(1, sizeof(struct Type));
 	ty->kind = TY_STRUCT;
-	struct_members(rest, token, ty);
+	struct_members(rest, token->next, ty);
 	ty->align = 1;
 
 	// caculate the offset of struct members
@@ -777,6 +820,9 @@ static struct Type *struct_decl(struct Token **rest, struct Token *token)
 	}
 	ty->size = align_to(offset, ty->align);
 
+	// if have a tag, reg the structure type
+	if (tag)
+		push_tag_scope(tag, ty);
 	return ty;
 }
 
