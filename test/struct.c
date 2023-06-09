@@ -345,6 +345,16 @@ int main()
 		       sizeof(y);
 	       }));
 
+	// [56] Support for long type
+	printf("[56] Support for long type\n");
+	ASSERT(16, ({
+		       struct {
+			       char a;
+			       long b;
+		       } x;
+		       sizeof(x);
+	       }));
+
 	printf("OK\n");
 	return 0;
 }

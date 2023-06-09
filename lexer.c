@@ -98,13 +98,6 @@ bool consume(struct Token **rest, struct Token *token, char *str)
 	return false;
 }
 
-int get_number(struct Token *token)
-{
-	if (token->kind != TK_NUM)
-		error_token(token, "expect a number");
-	return token->val;
-}
-
 static struct Token *new_token(enum TokenKind Kind, char *start, char *end)
 {
 	struct Token *token = calloc(1, sizeof(struct Token));
@@ -162,9 +155,9 @@ static int read_punct(char *op_str)
 static bool is_keyword(struct Token *token)
 {
 	// keyword list
-	static char *KeyWords[] = { "return", "if",   "else",	"for",
-				    "while",  "int",  "sizeof", "char",
-				    "struct", "union" };
+	static char *KeyWords[] = { "return", "if",    "else",	 "for",
+				    "while",  "int",   "sizeof", "char",
+				    "struct", "union", "long" };
 
 	for (int i = 0; i < sizeof(KeyWords) / sizeof(*KeyWords); ++i) {
 		if (equal(token, KeyWords[i]))

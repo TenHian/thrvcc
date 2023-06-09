@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void assert(int expected, int actual, char *code)
+void assert(long expected, long actual, char *code)
 {
 	if (expected == actual) {
-		printf("%s => %d\n", code, actual);
+		printf("%s => %ld\n", code, actual);
 	} else {
-		printf("%s => %d expected but got %d\n", code, expected,
+		printf("%s => %ld expected but got %d\n", code, expected,
 		       actual);
 		exit(1);
 	}

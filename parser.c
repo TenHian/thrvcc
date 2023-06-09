@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,7 +46,7 @@ static struct Scope *Scp = &(struct Scope){};
 
 // program = (functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
-// declspec = "char" | "int" | structDecl | unionDecl
+// declspec = "char" | "int" | "long" | structDecl | unionDecl
 // declarator = "*"* ident typeSuffix
 // typeSuffix = "(" funcParams | "[" num "]" | typeSuffix | ε
 // funcParams = (param ("," param)*)? ")"
@@ -166,7 +167,7 @@ static struct AstNode *new_binary_tree_node(enum NodeKind kind,
 	return node;
 }
 
-static struct AstNode *new_num_astnode(int val, struct Token *token)
+static struct AstNode *new_num_astnode(int64_t val, struct Token *token)
 {
 	struct AstNode *node = new_astnode(ND_NUM, token);
 	node->val = val;
@@ -252,7 +253,7 @@ static char *get_ident(struct Token *token)
 }
 
 // get number
-static int get_number(struct Token *token)
+static long get_number(struct Token *token)
 {
 	if (token->kind != TK_NUM)
 		error_token(token, "expected a number");
@@ -268,7 +269,7 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 	Scp->tags = tsp;
 }
 
-// declspec = "char" | "int" | structDecl | unionDecl
+// declspec = "char" | "int" | "long" | structDecl | unionDecl
 // declarator specifier
 static struct Type *declspec(struct Token **rest, struct Token *token)
 {
@@ -282,6 +283,12 @@ static struct Type *declspec(struct Token **rest, struct Token *token)
 	if (equal(token, "int")) {
 		*rest = token->next;
 		return TyInt;
+	}
+
+	// "long"
+	if (equal(token, "long")) {
+		*rest = token->next;
+		return TyLong;
 	}
 
 	// structDecl
@@ -410,7 +417,8 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token)
 static bool is_typename(struct Token *token)
 {
 	return equal(token, "char") || equal(token, "int") ||
-	       equal(token, "struct") || equal(token, "union");
+	       equal(token, "long") || equal(token, "struct") ||
+	       equal(token, "union");
 }
 
 // parse stmt

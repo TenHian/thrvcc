@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -55,6 +56,7 @@ enum NodeKind {
 enum TypeKind {
 	TY_CHAR, // char
 	TY_INT, // integer
+	TY_LONG, // long integer
 	TY_PTR, // pointer
 	TY_FUNC, // function
 	TY_ARRAY, // array
@@ -65,7 +67,7 @@ enum TypeKind {
 struct Token {
 	enum TokenKind kind;
 	struct Token *next;
-	int val;
+	int64_t val;
 	char *location;
 	int len;
 	struct Type *type;
@@ -154,7 +156,7 @@ struct AstNode {
 	struct AstNode *args; // func args
 
 	struct Obj_Var *var; // string that store var type
-	int val;
+	int64_t val;
 };
 
 // when error at thrvcc source code, print file_name and line_no
@@ -162,6 +164,7 @@ struct AstNode {
 
 extern struct Type *TyChar;
 extern struct Type *TyInt;
+extern struct Type *TyLong;
 
 void error_out(char *fmt, ...);
 void verror_at(int line_no, char *location, char *fmt, va_list va);

@@ -38,6 +38,11 @@ int fib(int x)
 	return fib(x - 1) + fib(x - 2);
 }
 
+int sub_long(long a, long b, long c)
+{
+	return a - b - c;
+}
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -57,6 +62,10 @@ int main()
 	ASSERT(55, fib(9));
 
 	ASSERT(1, ({ sub_char(7, 3, 3); }));
+
+	// [56] Support for long type
+	printf("[56] Support for long type\n");
+	ASSERT(2147483648, sub_long(2147483650, 1, 1));
 
 	printf("OK\n");
 	return 0;
