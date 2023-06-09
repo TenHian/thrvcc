@@ -15,7 +15,7 @@ struct VarScope {
 	struct Obj_Var *var; // variable
 };
 
-// scope of structure label
+// scope of structure label or union label
 struct TagScope {
 	struct TagScope *next;
 	char *name;
@@ -45,7 +45,7 @@ static struct Scope *Scp = &(struct Scope){};
 
 // program = (functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
-// declspec = "char" | "int" | structDecl
+// declspec = "char" | "int" | structDecl | unionDecl
 // declarator = "*"* ident typeSuffix
 // typeSuffix = "(" funcParams | "[" num "]" | typeSuffix | ε
 // funcParams = (param ("," param)*)? ")"
@@ -69,7 +69,9 @@ static struct Scope *Scp = &(struct Scope){};
 // mul = unary ("*" | "/")
 // unary = ("+" | "-" | "*" | "&") unary | postfix
 // structMembers = (declspec declarator ( "," declarator)* ";")*
-// structDecl = "{" structMembers
+// structDecl = structUnionDecl
+// unionDecl = structUnionDecl
+// structUnionDecl = ident? ("{" structMembers)?
 // postfix = primary ("[" expr "]" | "." ident)* | "->" ident)*
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
@@ -94,6 +96,7 @@ static struct AstNode *expr(struct Token **rest, struct Token *token);
 static struct AstNode *add(struct Token **rest, struct Token *token);
 static struct AstNode *mul(struct Token **rest, struct Token *token);
 static struct Type *struct_decl(struct Token **rest, struct Token *token);
+static struct Type *union_decl(struct Token **rest, struct Token *token);
 static struct AstNode *unary(struct Token **rest, struct Token *token);
 static struct AstNode *postfix(struct Token **rest, struct Token *token);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
@@ -265,7 +268,7 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 	Scp->tags = tsp;
 }
 
-// declspec = "char" | "int" | structDecl
+// declspec = "char" | "int" | structDecl | unionDecl
 // declarator specifier
 static struct Type *declspec(struct Token **rest, struct Token *token)
 {
@@ -284,6 +287,10 @@ static struct Type *declspec(struct Token **rest, struct Token *token)
 	// structDecl
 	if (equal(token, "struct"))
 		return struct_decl(rest, token->next);
+
+	// unionDecl
+	if (equal(token, "union"))
+		return union_decl(rest, token->next);
 
 	error_token(token, "typename expected");
 	return NULL;
@@ -403,7 +410,7 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token)
 static bool is_typename(struct Token *token)
 {
 	return equal(token, "char") || equal(token, "int") ||
-	       equal(token, "struct");
+	       equal(token, "struct") || equal(token, "union");
 }
 
 // parse stmt
@@ -784,10 +791,10 @@ static void struct_members(struct Token **rest, struct Token *token,
 	type->member = head.next;
 }
 
-// structDecl = "{" structMembers
-static struct Type *struct_decl(struct Token **rest, struct Token *token)
+// structUnionDecl = ident? ("{" structMembers)?
+static struct Type *struct_union_decl(struct Token **rest, struct Token *token)
 {
-	// read structure label
+	// read label
 	struct Token *tag = NULL;
 	if (token->kind == TK_IDENT) {
 		tag = token;
@@ -808,6 +815,18 @@ static struct Type *struct_decl(struct Token **rest, struct Token *token)
 	struct_members(rest, token->next, ty);
 	ty->align = 1;
 
+	// if have a tag, reg the structure type
+	if (tag)
+		push_tag_scope(tag, ty);
+	return ty;
+}
+
+// structDecl = structUnionDecl
+static struct Type *struct_decl(struct Token **rest, struct Token *token)
+{
+	struct Type *ty = struct_union_decl(rest, token);
+	ty->kind = TY_STRUCT;
+
 	// caculate the offset of struct members
 	int offset = 0;
 	for (struct Member *mem = ty->member; mem; mem = mem->next) {
@@ -820,9 +839,25 @@ static struct Type *struct_decl(struct Token **rest, struct Token *token)
 	}
 	ty->size = align_to(offset, ty->align);
 
-	// if have a tag, reg the structure type
-	if (tag)
-		push_tag_scope(tag, ty);
+	return ty;
+}
+
+// unionDecl = structUnionDecl
+static struct Type *union_decl(struct Token **rest, struct Token *token)
+{
+	struct Type *ty = struct_union_decl(rest, token);
+	ty->kind = TY_UNION;
+
+	// union needs to be set to the maximum alignment and size,\
+	// and the variable offsets all default to 0
+	for (struct Member *mem = ty->member; mem; mem = mem->next) {
+		if (ty->align < mem->type->align)
+			ty->align = mem->type->align;
+		if (ty->size < mem->type->size)
+			ty->size = mem->type->size;
+	}
+	// align
+	ty->size = align_to(ty->size, ty->align);
 	return ty;
 }
 
@@ -841,8 +876,8 @@ static struct Member *get_struct_member(struct Type *type, struct Token *token)
 static struct AstNode *struct_ref(struct AstNode *lhs, struct Token *token)
 {
 	add_type(lhs);
-	if (lhs->type->kind != TY_STRUCT)
-		error_token(lhs->tok, "not a struct");
+	if (lhs->type->kind != TY_STRUCT && lhs->type->kind != TY_UNION)
+		error_token(lhs->tok, "not a struct nor a union");
 
 	struct AstNode *node = new_unary_tree_node(ND_MEMBER, lhs, token);
 	node->member = get_struct_member(lhs->type, token);
