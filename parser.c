@@ -70,7 +70,7 @@ static struct Scope *Scp = &(struct Scope){};
 // unary = ("+" | "-" | "*" | "&") unary | postfix
 // structMembers = (declspec declarator ( "," declarator)* ";")*
 // structDecl = "{" structMembers
-// postfix = primary ("[" expr "]" | "." ident)*
+// postfix = primary ("[" expr "]" | "." ident)* | "->" ident)*
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
 //         | "sizeof" unary
@@ -868,6 +868,14 @@ static struct AstNode *postfix(struct Token **rest, struct Token *token)
 		}
 
 		if (equal(token, ".")) {
+			node = struct_ref(node, token->next);
+			token = token->next->next;
+			continue;
+		}
+
+		if (equal(token, "->")) {
+			// x->y equals to (*x).y
+			node = new_unary_tree_node(ND_DEREF, node, token);
 			node = struct_ref(node, token->next);
 			token = token->next->next;
 			continue;
