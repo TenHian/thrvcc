@@ -47,7 +47,7 @@ static struct Scope *Scp = &(struct Scope){};
 // program = (functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = "char" | "short" | "int" | "long" | structDecl | unionDecl
-// declarator = "*"* ident typeSuffix
+// declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = "(" funcParams | "[" num "]" | typeSuffix | ε
 // funcParams = (param ("," param)*)? ")"
 // param = declspec declarator
@@ -353,7 +353,7 @@ static struct Type *type_suffix(struct Token **rest, struct Token *token,
 	return ty;
 }
 
-// declarator = "*"* ident type_suffix
+// declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 static struct Type *declarator(struct Token **rest, struct Token *token,
 			       struct Type *type)
 {
@@ -361,6 +361,21 @@ static struct Type *declarator(struct Token **rest, struct Token *token,
 	// construct all (multiple) pointers
 	while (consume(&token, token, "*"))
 		type = pointer_to(type);
+
+	// "(" declarator ")"
+	if (equal(token, "(")) {
+		// reg "(" position
+		struct Token *start = token;
+		struct Type dummy = {};
+		// make token forword after ")"
+		declarator(&token, start->next, &dummy);
+		token = skip(token, ")");
+		// get the type suffix after the brackets, \
+		// type is the finished type, rest points to the semicolon
+		type = type_suffix(rest, token, type);
+		// parse type as a whole as base to construct and return the value of type
+		return declarator(&token, start->next, type);
+	}
 
 	if (token->kind != TK_IDENT)
 		error_token(token, "expected a variable name");
