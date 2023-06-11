@@ -1,6 +1,7 @@
 #include "thrvcc.h"
 #include <stdlib.h>
 
+struct Type *TyVoid = &(struct Type){ TY_VOID, 1, 1 };
 struct Type *TyChar = &(struct Type){ TY_CHAR, 1, 1 };
 struct Type *TyInt = &(struct Type){ TY_INT, 4, 4 };
 struct Type *TyLong = &(struct Type){ TY_LONG, 8, 8 };
@@ -120,6 +121,8 @@ void add_type(struct AstNode *node)
 	case ND_DEREF:
 		if (!node->lhs->type->base)
 			error_token(node->tok, "invalid pointer dereference");
+		if (node->lhs->type->base->kind == TY_VOID)
+			error_token(node->tok, "dereferencing a void pointer");
 		node->type = node->lhs->type->base;
 		return;
 	case ND_STMT_EXPR:

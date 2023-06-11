@@ -264,6 +264,12 @@ int main()
 		       y[0][0];
 	       }));
 
+	// [60] Support for void type
+	printf("[60] Support for void type\n");
+	{
+		void *x;
+	}
+
 	printf("OK\n");
 	return 0;
 }
