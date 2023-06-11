@@ -46,7 +46,8 @@ static struct Scope *Scp = &(struct Scope){};
 
 // program = (functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
-// declspec = "void" | "char" | "short" | "int" | "long" | structDecl | unionDecl
+// declspec = ("void" | "char" | "short" | "int" | "long"
+//             | structDecl | unionDecl)+
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = "(" funcParams | "[" num "]" | typeSuffix | ε
 // funcParams = (param ("," param)*)? ")"
@@ -101,6 +102,7 @@ static struct Type *union_decl(struct Token **rest, struct Token *token);
 static struct AstNode *unary(struct Token **rest, struct Token *token);
 static struct AstNode *postfix(struct Token **rest, struct Token *token);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
+static bool is_typename(struct Token *token);
 
 // enter scope
 static void enter_scope(void)
@@ -269,50 +271,79 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 	Scp->tags = tsp;
 }
 
-// declspec = "void" | "char" | "short" | "int" | "long" | structDecl | unionDecl
+// declspec = ("void" | "char" | "short" | "int" | "long"
+//             | structDecl | unionDecl)+
 // declarator specifier
 static struct Type *declspec(struct Token **rest, struct Token *token)
 {
-	// "void"
-	if (equal(token, "void")) {
-		*rest = token->next;
-		return TyVoid;
+	// combinations of types are represented as for example: LONG+LONG=1<<9
+	// tt is known that 'long int' and 'int long' are equivalent.
+	enum {
+		VOID = 1 << 0,
+		CHAR = 1 << 2,
+		SHORT = 1 << 4,
+		INT = 1 << 6,
+		LONG = 1 << 8,
+		OTHER = 1 << 10,
+	};
+
+	struct Type *type = TyInt;
+	int Counter = 0; // record type summed values
+
+	// iterate through all Token of type name
+	while (is_typename(token)) {
+		if (equal(token, "struct") || equal(token, "union")) {
+			if (equal(token, "struct"))
+				type = struct_decl(&token, token->next);
+			else
+				type = union_decl(&token, token->next);
+			Counter += OTHER;
+			continue;
+		}
+
+		// Add Counter for the type name that appears
+		// Each step of Counter needs to have a legal value
+		if (equal(token, "void"))
+			Counter += VOID;
+		else if (equal(token, "char"))
+			Counter += CHAR;
+		else if (equal(token, "short"))
+			Counter += SHORT;
+		else if (equal(token, "int"))
+			Counter += INT;
+		else if (equal(token, "long"))
+			Counter += LONG;
+		else
+			unreachable();
+
+		// Mapping to the corresponding Type according to the Counter value
+		switch (Counter) {
+		case VOID:
+			type = TyVoid;
+			break;
+		case CHAR:
+			type = TyChar;
+			break;
+		case SHORT:
+		case SHORT + INT:
+			type = TyShort;
+			break;
+		case INT:
+			type = TyInt;
+			break;
+		case LONG:
+		case LONG + INT:
+			type = TyLong;
+			break;
+		default:
+			error_token(token, "invalid type");
+		}
+
+		token = token->next;
 	}
 
-	// "char"
-	if (equal(token, "char")) {
-		*rest = token->next;
-		return TyChar;
-	}
-
-	// "short"
-	if (equal(token, "short")) {
-		*rest = token->next;
-		return TyShort;
-	}
-
-	// "int"
-	if (equal(token, "int")) {
-		*rest = token->next;
-		return TyInt;
-	}
-
-	// "long"
-	if (equal(token, "long")) {
-		*rest = token->next;
-		return TyLong;
-	}
-
-	// structDecl
-	if (equal(token, "struct"))
-		return struct_decl(rest, token->next);
-
-	// unionDecl
-	if (equal(token, "union"))
-		return union_decl(rest, token->next);
-
-	error_token(token, "typename expected");
-	return NULL;
+	*rest = token;
+	return type;
 }
 
 // funcParams = (param ("," param)*)? ")"
