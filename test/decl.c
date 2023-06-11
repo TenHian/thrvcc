@@ -29,6 +29,13 @@ int main()
 		       sizeof(x);
 	       }));
 
+	// [62] Support for 'long long' types
+	printf("[62] Support for 'long long' types\n");
+	ASSERT(8, ({
+		       long long x;
+		       sizeof(x);
+	       }));
+
 	printf("OK\n");
 	return 0;
 }
