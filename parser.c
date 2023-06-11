@@ -1060,6 +1060,11 @@ static struct Token *function(struct Token *token, struct Type *base_type)
 
 	struct Obj_Var *fn = new_gvar(get_ident(type->name), type);
 	fn->is_function = true;
+	fn->is_definition = !consume(&token, token, ";");
+
+	// determine if there is no function definition
+	if (!fn->is_definition)
+		return token;
 
 	// clean global Locals
 	Locals = NULL;

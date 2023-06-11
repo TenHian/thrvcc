@@ -450,7 +450,7 @@ void emit_text(struct Obj_Var *prog)
 {
 	// codegen for every single function
 	for (struct Obj_Var *fn = prog; fn; fn = fn->next) {
-		if (!fn->is_function)
+		if (!fn->is_function || !fn->is_definition)
 			continue;
 
 		println("\n  # define global %s seg", fn->name);

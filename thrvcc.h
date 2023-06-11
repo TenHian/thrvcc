@@ -119,6 +119,7 @@ struct Obj_Var {
 
 	// global_var or function
 	bool is_function; // is function?
+	bool is_definition; // is definition?
 
 	// global var
 	char *init_data;
