@@ -55,6 +55,25 @@ struct Type *array_of(struct Type *base, int len)
 	return type;
 }
 
+// Get the type of accommodating left and right parts
+static struct Type *get_common_type(struct Type *ty1, struct Type *ty2)
+{
+	if (ty1->base)
+		return pointer_to(ty1->base);
+	if (ty1->size == 8 || ty2->size == 8)
+		return TyLong;
+	return TyInt;
+}
+
+// Perform regular arithmetic conversions
+static void arith_conv(struct AstNode **lhs, struct AstNode **rhs)
+{
+	struct Type *type = get_common_type((*lhs)->type, (*rhs)->type);
+	// Converting left and right parts to compatible types
+	*lhs = new_cast(*lhs, type);
+	*rhs = new_cast(*rhs, type);
+}
+
 // add type for nodes
 void add_type(struct AstNode *node)
 {
@@ -77,25 +96,42 @@ void add_type(struct AstNode *node)
 		add_type(nd);
 
 	switch (node->kind) {
+	case ND_NUM:
+		node->type = (node->val == (int)node->val) ? TyInt : TyLong;
+		return;
 	case ND_ADD:
 	case ND_SUB:
 	case ND_MUL:
 	case ND_DIV:
-	case ND_NEG:
+		// type conversion for left and right parts
+		arith_conv(&node->lhs, &node->rhs);
 		node->type = node->lhs->type;
 		return;
+	case ND_NEG: {
+		// type conversion for left part
+		struct Type *type = get_common_type(TyInt, node->lhs->type);
+		node->lhs = new_cast(node->lhs, type);
+		node->type = type;
+		return;
+	}
 	// set node type as node->lhs type
 	// lhs coudn't be array node
 	case ND_ASSIGN:
 		if (node->lhs->type->kind == TY_ARRAY)
 			error_token(node->lhs->tok, "not an lvalue");
+		if (node->lhs->type->kind != TY_STRUCT)
+			// type conversion for right part
+			node->rhs = new_cast(node->rhs, node->lhs->type);
 		node->type = node->lhs->type;
 		return;
 	case ND_EQ:
 	case ND_NE:
 	case ND_LT:
 	case ND_LE:
-	case ND_NUM:
+		// type conversion for left and right part
+		arith_conv(&node->lhs, &node->rhs);
+		node->type = TyInt;
+		return;
 	case ND_FUNCALL:
 		node->type = TyLong;
 		return;

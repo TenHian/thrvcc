@@ -191,6 +191,15 @@ static struct AstNode *new_num_astnode(int64_t val, struct Token *token)
 	return node;
 }
 
+// construct a new long type node
+static struct AstNode *new_long(int64_t val, struct Token *token)
+{
+	struct AstNode *node = new_astnode(ND_NUM, token);
+	node->val = val;
+	node->type = TyLong;
+	return node;
+}
+
 static struct AstNode *new_var_astnode(struct Obj_Var *var, struct Token *token)
 {
 	struct AstNode *node = new_astnode(ND_VAR, token);
@@ -199,7 +208,7 @@ static struct AstNode *new_var_astnode(struct Obj_Var *var, struct Token *token)
 }
 
 // new cast
-static struct AstNode *new_cast(struct AstNode *expr, struct Type *type)
+struct AstNode *new_cast(struct AstNode *expr, struct Type *type)
 {
 	add_type(expr);
 
@@ -847,9 +856,9 @@ static struct AstNode *new_add(struct AstNode *lhs, struct AstNode *rhs,
 	// ptr + num
 	// pointer additon, ptr+1, the 1 in here is not a char,
 	// is 1 item's space, so, need to *size
+	// pointer stored with long type now
 	rhs = new_binary_tree_node(
-		ND_MUL, rhs, new_num_astnode(lhs->type->base->size, token),
-		token);
+		ND_MUL, rhs, new_long(lhs->type->base->size, token), token);
 	return new_binary_tree_node(ND_ADD, lhs, rhs, token);
 }
 
@@ -865,9 +874,10 @@ static struct AstNode *new_sub(struct AstNode *lhs, struct AstNode *rhs,
 		return new_binary_tree_node(ND_SUB, lhs, rhs, token);
 	// ptr - num
 	if (lhs->type->base && is_integer(rhs->type)) {
+		// pointer stored with long type now
 		rhs = new_binary_tree_node(
-			ND_MUL, rhs,
-			new_num_astnode(lhs->type->base->size, token), token);
+			ND_MUL, rhs, new_long(lhs->type->base->size, token),
+			token);
 		add_type(rhs);
 		struct AstNode *node =
 			new_binary_tree_node(ND_SUB, lhs, rhs, token);

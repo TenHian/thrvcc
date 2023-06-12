@@ -27,6 +27,17 @@ int main()
 		       int b;
 	       }));
 
+	// [67] Implement regular arithmetic conversions
+	printf("[67] Implement regular arithmetic conversions\n");
+	ASSERT(8, sizeof(-10 + (long)5));
+	ASSERT(8, sizeof(-10 - (long)5));
+	ASSERT(8, sizeof(-10 * (long)5));
+	ASSERT(8, sizeof(-10 / (long)5));
+	ASSERT(8, sizeof((long)-10 + 5));
+	ASSERT(8, sizeof((long)-10 - 5));
+	ASSERT(8, sizeof((long)-10 * 5));
+	ASSERT(8, sizeof((long)-10 / 5));
+
 	printf("OK\n");
 	return 0;
 }

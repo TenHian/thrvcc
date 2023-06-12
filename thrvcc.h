@@ -193,6 +193,8 @@ struct Type *array_of(struct Type *base, int len);
 // function type
 struct Type *func_type(struct Type *return_ty);
 int align_to(int N, int Align);
+// Type conversion, converting the value of an expression to another type
+struct AstNode *new_cast(struct AstNode *expr, struct Type *type);
 // Lexical analysis
 struct Token *lexer_file(char *path);
 // Grammatical analysis
