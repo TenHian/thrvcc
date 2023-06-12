@@ -151,6 +151,67 @@ static void store(struct Type *type)
 		println("  sd a0, 0(a1)");
 }
 
+// type enum
+enum { I8, I16, I32, I64 };
+
+// Get the enumeration value corresponding to the type
+static int get_typeid(struct Type *type)
+{
+	switch (type->kind) {
+	case TY_CHAR:
+		return I8;
+	case TY_SHORT:
+		return I16;
+	case TY_INT:
+		return I32;
+	default:
+		return I64;
+	}
+}
+
+// Type Mapping Table
+// The conversion of a 64-bit signed number to a 64-N-bit signed number \
+// is achieved by first shifting logically left by N bits \
+// and then arithmetically right by N bits
+static char i64i8[] = "  # cast to i8 type\n"
+		      "  slli a0, a0, 56\n"
+		      "  srai a0, a0, 56";
+static char i64i16[] = "  # cast to i16 type\n"
+		       "  slli a0, a0, 48\n"
+		       "  srai a0, a0, 48";
+static char i64i32[] = "  # cast to i32 type\n"
+		       "  slli a0, a0, 32\n"
+		       "  srai a0, a0, 32";
+
+// All type conversion table
+static char *CastTable[10][10] = {
+	// clang-format off
+	
+	// be mapped to
+	// {i8,  i16,    i32,    i64}
+	{NULL,   NULL,   NULL,   NULL}, // cast from i8
+	{i64i8,  NULL,   NULL,   NULL}, // cast from i16
+	{i64i8,  i64i16, NULL,   NULL}, // cast from i32
+	{i64i8,  i64i16, i64i32, NULL}, // cast from i64
+
+	// clang-format on
+};
+
+// type conversion(cast)
+static void cast(struct Type *from, struct Type *to)
+{
+	if (to->kind == TY_VOID)
+		return;
+
+	// Get the enumerated value of the type
+	int _from = get_typeid(from);
+	int _to = get_typeid(to);
+	if (CastTable[_from][_to]) {
+		println("  # cast function");
+		println("%s", CastTable[_from][_to]);
+	}
+}
+
 static void gen_expr(struct AstNode *node)
 {
 	// .loc, file number, line number
@@ -191,6 +252,10 @@ static void gen_expr(struct AstNode *node)
 	case ND_COMMA:
 		gen_expr(node->lhs);
 		gen_expr(node->rhs);
+		return;
+	case ND_CAST:
+		gen_expr(node->lhs);
+		cast(node->lhs->type, node->type);
 		return;
 	case ND_FUNCALL: {
 		// args count

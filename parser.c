@@ -75,8 +75,9 @@ static struct Scope *Scp = &(struct Scope){};
 // equality = relational ("==" | "!=")
 // relational = add ("<" | "<=" | ">" | ">=")
 // add = mul ("+" | "-")
-// mul = unary ("*" | "/")
-// unary = ("+" | "-" | "*" | "&") unary | postfix
+// mul = cast ("*" cast | "/" cast)*
+// cast = "(" typeName ")" cast | unary
+// unary = ("+" | "-" | "*" | "&") cast | postfix
 // structMembers = (declspec declarator ( "," declarator)* ";")*
 // structDecl = structUnionDecl
 // unionDecl = structUnionDecl
@@ -109,6 +110,7 @@ static struct AstNode *relational(struct Token **rest, struct Token *token);
 static struct AstNode *expr(struct Token **rest, struct Token *token);
 static struct AstNode *add(struct Token **rest, struct Token *token);
 static struct AstNode *mul(struct Token **rest, struct Token *token);
+static struct AstNode *cast(struct Token **rest, struct Token *token);
 static struct Type *struct_decl(struct Token **rest, struct Token *token);
 static struct Type *union_decl(struct Token **rest, struct Token *token);
 static struct AstNode *unary(struct Token **rest, struct Token *token);
@@ -193,6 +195,19 @@ static struct AstNode *new_var_astnode(struct Obj_Var *var, struct Token *token)
 {
 	struct AstNode *node = new_astnode(ND_VAR, token);
 	node->var = var;
+	return node;
+}
+
+// new cast
+static struct AstNode *new_cast(struct AstNode *expr, struct Type *type)
+{
+	add_type(expr);
+
+	struct AstNode *node = calloc(1, sizeof(struct AstNode));
+	node->kind = ND_CAST;
+	node->tok = expr->tok;
+	node->lhs = expr;
+	node->type = copy_type(type);
 	return node;
 }
 
@@ -892,24 +907,25 @@ static struct AstNode *add(struct Token **rest, struct Token *token)
 		return node;
 	}
 }
-// mul = primary ("*" primary | "/" primary) *
+// mul = cast ("*" cast | "/" cast)*
 static struct AstNode *mul(struct Token **rest, struct Token *token)
 {
-	// unary
-	struct AstNode *node = unary(&token, token);
+	// cast
+	struct AstNode *node = cast(&token, token);
 
+	// ("*" cast | "/" cast)*
 	while (true) {
 		struct Token *start = token;
+		// "*" cast
 		if (equal(token, "*")) {
-			node = new_binary_tree_node(ND_MUL, node,
-						    unary(&token, token->next),
-						    start);
+			node = new_binary_tree_node(
+				ND_MUL, node, cast(&token, token->next), start);
 			continue;
 		}
+		// "/" cast
 		if (equal(token, "/")) {
-			node = new_binary_tree_node(ND_DIV, node,
-						    unary(&token, token->next),
-						    start);
+			node = new_binary_tree_node(
+				ND_DIV, node, cast(&token, token->next), start);
 			continue;
 		}
 
@@ -918,20 +934,43 @@ static struct AstNode *mul(struct Token **rest, struct Token *token)
 	}
 }
 
+// Parsing type conversions(cast)
+// cast = "(" typeName ")" cast | unary
+static struct AstNode *cast(struct Token **rest, struct Token *token)
+{
+	// cast = "(" typeName ")" cast
+	if (equal(token, "(") && is_typename(token->next)) {
+		struct Token *start = token;
+		struct Type *type = type_name(&token, token->next);
+		token = skip(token, ")");
+		// Parsing nested type conversions
+		struct AstNode *node = new_cast(cast(rest, token), type);
+		node->tok = start;
+		return node;
+	}
+
+	// unary
+	return unary(rest, token);
+}
+
 // parse unary operators
-// unary = ("+" | "-" | "*" | "&") unary | postfix
+// unary = ("+" | "-" | "*" | "&") cast | postfix
 static struct AstNode *unary(struct Token **rest, struct Token *token)
 {
+	// "+" cast
 	if (equal(token, "+"))
-		return unary(rest, token->next);
+		return cast(rest, token->next);
+	// "-" cast
 	if (equal(token, "-"))
-		return new_unary_tree_node(ND_NEG, unary(rest, token->next),
+		return new_unary_tree_node(ND_NEG, cast(rest, token->next),
 					   token);
+	// "&" cast
 	if (equal(token, "&"))
-		return new_unary_tree_node(ND_ADDR, unary(rest, token->next),
+		return new_unary_tree_node(ND_ADDR, cast(rest, token->next),
 					   token);
+	// "*" cast
 	if (equal(token, "*"))
-		return new_unary_tree_node(ND_DEREF, unary(rest, token->next),
+		return new_unary_tree_node(ND_DEREF, cast(rest, token->next),
 					   token);
 	// postfix
 	return postfix(rest, token);
