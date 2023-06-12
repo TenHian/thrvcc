@@ -38,7 +38,7 @@ int fib(int x)
 	return fib(x - 1) + fib(x - 2);
 }
 
-int sub_long(long a, long b, long c)
+long sub_long(long a, long b, long c)
 {
 	return a - b - c;
 }
@@ -46,6 +46,17 @@ int sub_long(long a, long b, long c)
 int sub_short(short a, short b, short c)
 {
 	return a - b - c;
+}
+
+int g1;
+
+int *g1_ptr()
+{
+	return &g1;
+}
+char int_to_char(int x)
+{
+	return x;
 }
 
 int main()
@@ -75,6 +86,13 @@ int main()
 	// [57] Support for short type
 	printf("[57] Support for short type\n");
 	ASSERT(1, sub_short(4, 2, 1));
+
+	// [69] Process return type conversion
+	printf("[69] Process return type conversion\n");
+	g1 = 3;
+
+	ASSERT(3, *g1_ptr());
+	ASSERT(5, int_to_char(261));
 
 	printf("OK\n");
 	return 0;

@@ -50,6 +50,9 @@ struct Obj_Var *Globals;
 // linked list for all scope
 static struct Scope *Scp = &(struct Scope){};
 
+// point to current parsing function
+static struct Obj_Var *CurParseFn;
+
 // program = (typedef | functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = ("void" | "char" | "short" | "int" | "long"
@@ -612,8 +615,12 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 	// "return" expr ";"
 	if (equal(token, "return")) {
 		struct AstNode *node = new_astnode(ND_RETURN, token);
-		node->lhs = expr(&token, token->next);
+		struct AstNode *exp = expr(&token, token->next);
 		*rest = skip(token, ";");
+
+		add_type(exp);
+		// type conversion for return type
+		node->lhs = new_cast(exp, CurParseFn->type->return_type);
 		return node;
 	}
 	// "if" "(" expr ")" stmt ("else" stmt)?
@@ -1298,6 +1305,7 @@ static struct Token *function(struct Token *token, struct Type *base_type)
 	if (!fn->is_definition)
 		return token;
 
+	CurParseFn = fn;
 	// clean global Locals
 	Locals = NULL;
 	// enter new scope
