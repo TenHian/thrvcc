@@ -1150,6 +1150,14 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 	struct Token *start = token;
 	token = token->next->next;
 
+	// search function name
+	struct VarScope *vsp = find_var(start);
+	if (!vsp)
+		error_token(start, "implicit declaration of a function");
+	if (!vsp->var || vsp->var->type->kind != TY_FUNC)
+		error_token(start, "not a function");
+
+	struct Type *type = vsp->var->type->return_type;
 	struct AstNode head = {};
 	struct AstNode *cur = &head;
 
@@ -1159,6 +1167,7 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 		// assign
 		cur->next = assign(&token, token);
 		cur = cur->next;
+		add_type(cur);
 	}
 
 	*rest = skip(token, ")");
@@ -1167,6 +1176,7 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 
 	// ident
 	node->func_name = strndup(start->location, start->len);
+	node->type = type;
 	node->args = head.next;
 	return node;
 }
