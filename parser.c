@@ -9,11 +9,12 @@
 #include <threads.h>
 #include <time.h>
 
-// local/global variable scope
+// local/global variable scope or typedef scope
 struct VarScope {
 	struct VarScope *next; // next variable scope
 	char *name; // variable scope name
 	struct Obj_Var *var; // variable
+	struct Type *_typedef; // alias
 };
 
 // scope of structure label or union label
@@ -32,6 +33,11 @@ struct Scope {
 	struct TagScope *tags; // label of the structure in the current scope
 };
 
+// Variable attributes
+struct VarAttr {
+	bool is_typedef; // Whether it is a type alias
+};
+
 // all var add in this list while parse
 // means Local Variables
 // used by func:
@@ -44,16 +50,17 @@ struct Obj_Var *Globals;
 // linked list for all scope
 static struct Scope *Scp = &(struct Scope){};
 
-// program = (functionDefinition | globalVariable)*
+// program = (typedef | functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = ("void" | "char" | "short" | "int" | "long"
-//             | structDecl | unionDecl)+
+//             | "typedef"
+//             | structDecl | unionDecl | typedefName)+
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = "(" funcParams | "[" num "]" | typeSuffix | ε
 // funcParams = (param ("," param)*)? ")"
 // param = declspec declarator
 
-// compoundStmt = (declaration | stmt)* "}"
+// compoundStmt = (typedef | declaration | stmt)* "}"
 // declaration =
 // 	declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
 // stmt = "return" expr ";"
@@ -84,11 +91,13 @@ static struct Scope *Scp = &(struct Scope){};
 
 // funcall = ident "(" (assign ("," assign)*)? ")"
 
-static struct Type *declspec(struct Token **rest, struct Token *token);
+static struct Type *declspec(struct Token **rest, struct Token *token,
+			     struct VarAttr *attr);
 static struct Type *declarator(struct Token **rest, struct Token *token,
 			       struct Type *ty);
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
-static struct AstNode *declaration(struct Token **rest, struct Token *token);
+static struct AstNode *declaration(struct Token **rest, struct Token *token,
+				   struct Type *base_ty);
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token);
 static struct AstNode *assign(struct Token **rest, struct Token *token);
@@ -103,6 +112,7 @@ static struct AstNode *unary(struct Token **rest, struct Token *token);
 static struct AstNode *postfix(struct Token **rest, struct Token *token);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
 static bool is_typename(struct Token *token);
+static struct Token *parse_typedef(struct Token *token, struct Type *base_ty);
 
 // enter scope
 static void enter_scope(void)
@@ -120,14 +130,14 @@ static void leave_scope(void)
 }
 
 // find a local var by search name
-static struct Obj_Var *find_var(struct Token *token)
+static struct VarScope *find_var(struct Token *token)
 {
 	// the more scopes matched first, the deeper
 	for (struct Scope *sp = Scp; sp; sp = sp->next)
 		// iterate over all variables in the scope
 		for (struct VarScope *vsp = sp->vars; vsp; vsp = vsp->next)
 			if (equal(token, vsp->name))
-				return vsp->var;
+				return vsp;
 	return NULL;
 }
 
@@ -184,11 +194,10 @@ static struct AstNode *new_var_astnode(struct Obj_Var *var, struct Token *token)
 }
 
 // push variable into current scope
-static struct VarScope *push_scope(char *name, struct Obj_Var *var)
+static struct VarScope *push_scope(char *name)
 {
 	struct VarScope *vsp = calloc(1, sizeof(struct VarScope));
 	vsp->name = name;
-	vsp->var = var;
 	// link stack
 	vsp->next = Scp->vars;
 	Scp->vars = vsp;
@@ -201,7 +210,7 @@ static struct Obj_Var *new_var(char *name, struct Type *type)
 	struct Obj_Var *var = calloc(1, sizeof(struct Obj_Var));
 	var->name = name;
 	var->type = type;
-	push_scope(name, var);
+	push_scope(name)->var = var;
 	return var;
 }
 
@@ -254,6 +263,19 @@ static char *get_ident(struct Token *token)
 	return strndup(token->location, token->len);
 }
 
+// search for type alias
+static struct Type *find_typedef(struct Token *token)
+{
+	// A type alias is an identifier
+	if (token->kind == TK_IDENT) {
+		// Find if a variable exists in the scope
+		struct VarScope *vsp = find_var(token);
+		if (vsp)
+			return vsp->_typedef;
+	}
+	return NULL;
+}
+
 // get number
 static long get_number(struct Token *token)
 {
@@ -272,9 +294,11 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 }
 
 // declspec = ("void" | "char" | "short" | "int" | "long"
-//             | structDecl | unionDecl)+
+//             | "typedef"
+//             | structDecl | unionDecl | typedefName)+
 // declarator specifier
-static struct Type *declspec(struct Token **rest, struct Token *token)
+static struct Type *declspec(struct Token **rest, struct Token *token,
+			     struct VarAttr *attr)
 {
 	// combinations of types are represented as for example: LONG+LONG=1<<9
 	// tt is known that 'long int' and 'int long' are equivalent.
@@ -292,11 +316,33 @@ static struct Type *declspec(struct Token **rest, struct Token *token)
 
 	// iterate through all Token of type name
 	while (is_typename(token)) {
-		if (equal(token, "struct") || equal(token, "union")) {
+		// Handling the typedef keyword
+		if (equal(token, "typedef")) {
+			if (!attr)
+				error_token(
+					token,
+					"storage class specifier is not allowed in this context");
+			attr->is_typedef = true;
+			token = token->next;
+			continue;
+		}
+
+		// Handling user-defined types
+		struct Type *type2 = find_typedef(token);
+		if (equal(token, "struct") || equal(token, "union") || type2) {
+			if (Counter)
+				break;
+
 			if (equal(token, "struct"))
 				type = struct_decl(&token, token->next);
-			else
+			else if (equal(token, "union"))
 				type = union_decl(&token, token->next);
+			else {
+				// Set the type to the type pointed to by the type alias
+				type = type2;
+				token = token->next;
+			}
+
 			Counter += OTHER;
 			continue;
 		}
@@ -361,7 +407,7 @@ static struct Type *func_params(struct Token **rest, struct Token *token,
 		// param = declspec declarator
 		if (cur != &head)
 			token = skip(token, ",");
-		struct Type *base_ty = declspec(&token, token);
+		struct Type *base_ty = declspec(&token, token, NULL);
 		struct Type *declar_ty = declarator(&token, token, base_ty);
 		// copy to parameters list
 		cur->next = copy_type(declar_ty);
@@ -429,12 +475,9 @@ static struct Type *declarator(struct Token **rest, struct Token *token,
 
 // declaration =
 //    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
-static struct AstNode *declaration(struct Token **rest, struct Token *token)
+static struct AstNode *declaration(struct Token **rest, struct Token *token,
+				   struct Type *base_ty)
 {
-	// declspec
-	// base type
-	struct Type *base_type = declspec(&token, token);
-
 	struct AstNode head = {};
 	struct AstNode *cur = &head;
 	// count the var declaration times
@@ -448,7 +491,7 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token)
 
 		// declarator
 		// declare the var-type that got, include var name
-		struct Type *type = declarator(&token, token, base_type);
+		struct Type *type = declarator(&token, token, base_ty);
 		if (type->kind == TY_VOID)
 			error_token(token, "variable declared void");
 		struct Obj_Var *var = new_lvar(get_ident(type->name), type);
@@ -479,7 +522,8 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token)
 static bool is_typename(struct Token *token)
 {
 	static char *keyword[] = {
-		"void", "char", "short", "int", "long", "struct", "union",
+		"void", "char",	  "short", "int",
+		"long", "struct", "union", "typedef",
 	};
 
 	for (int i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {
@@ -487,7 +531,8 @@ static bool is_typename(struct Token *token)
 			return true;
 	}
 
-	return false;
+	// Find out if it is a type alias
+	return find_typedef(token);
 }
 
 // parse stmt
@@ -568,7 +613,7 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 }
 
 // parse compound stmt
-// compoundStmt = (declaration | stmt)* "}"
+// compoundStmt = (typedef | declaration | stmt)* "}"
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 {
 	struct AstNode *node = new_astnode(ND_BLOCK, token);
@@ -582,8 +627,19 @@ static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 	// (declaration | stmt)* "}"
 	while (!equal(token, "}")) {
 		// declaration
-		if (is_typename(token))
-			cur->next = declaration(&token, token);
+		if (is_typename(token)) {
+			struct VarAttr attr = {};
+			struct Type *base_ty = declspec(&token, token, &attr);
+
+			// parse 'typedef' stmt
+			if (attr.is_typedef) {
+				token = parse_typedef(token, base_ty);
+				continue;
+			}
+
+			// parse variable declaration statements
+			cur->next = declaration(&token, token, base_ty);
+		}
 		// stmt
 		else
 			cur->next = stmt(&token, token);
@@ -849,7 +905,7 @@ static void struct_members(struct Token **rest, struct Token *token,
 
 	while (!equal(token, "}")) {
 		// declspec
-		struct Type *base_ty = declspec(&token, token);
+		struct Type *base_ty = declspec(&token, token, NULL);
 		int first = true;
 
 		while (!consume(&token, token, ";")) {
@@ -1062,12 +1118,12 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 
 		// ident
 		// find var
-		struct Obj_Var *var = find_var(token);
+		struct VarScope *vsp = find_var(token);
 		// if var not exist, creat a new var in global var list
-		if (!var)
+		if (!vsp || !vsp->var)
 			error_token(token, "undefined variable");
 		*rest = token->next;
-		return new_var_astnode(var, token);
+		return new_var_astnode(vsp->var, token);
 	}
 	// str
 	if (token->kind == TK_STR) {
@@ -1085,6 +1141,24 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 
 	error_token(token, "expected an expression");
 	return NULL;
+}
+
+// Parse type alias
+static struct Token *parse_typedef(struct Token *token, struct Type *base_ty)
+{
+	bool first = true;
+
+	while (!consume(&token, token, ";")) {
+		if (!first)
+			token = skip(token, ",");
+		first = false;
+
+		struct Type *type = declarator(&token, token, base_ty);
+		// The variable name of the type alias is stored in the variable scope, \
+		// and the type is set
+		push_scope(get_ident(type->name))->_typedef = type;
+	}
+	return token;
 }
 
 // add params into Locals
@@ -1160,13 +1234,21 @@ static bool is_function(struct Token *token)
 }
 
 // parser
-// program = (functionDefinition | globalVariable)*
+// program = (typedef | functionDefinition | globalVariable)*
 struct Obj_Var *parse(struct Token *token)
 {
 	Globals = NULL;
 
 	while (token->kind != TK_EOF) {
-		struct Type *base_type = declspec(&token, token);
+		struct VarAttr attr = {};
+		struct Type *base_type = declspec(&token, token, &attr);
+
+		// typedef
+		if (attr.is_typedef) {
+			token = parse_typedef(token, base_type);
+			continue;
+		}
+
 		// function
 		if (is_function(token)) {
 			token = function(token, base_type);
