@@ -164,7 +164,7 @@ static void gen_expr(struct AstNode *node)
 	case ND_NEG:
 		gen_expr(node->lhs);
 		println("  # reverse the value of a0");
-		println("  neg a0, a0");
+		println("  neg%s a0, a0", node->type->size <= 4 ? "w" : "");
 		return;
 	case ND_VAR:
 	case ND_MEMBER:
@@ -220,22 +220,25 @@ static void gen_expr(struct AstNode *node)
 	pop("a1");
 
 	// gen bin-tree node
+	char *suffix =
+		node->lhs->type->kind == TY_LONG || node->lhs->type->base ? "" :
+									    "w";
 	switch (node->kind) {
 	case ND_ADD: // + a0=a0+a1
 		println("  # a0+a1, write the result into a0");
-		println("  add a0, a0, a1");
+		println("  add%s a0, a0, a1", suffix);
 		return;
 	case ND_SUB: // - a0=a0-a1
 		println("  # a0-a1, write the result into a0");
-		println("  sub a0, a0, a1");
+		println("  sub%s a0, a0, a1", suffix);
 		return;
 	case ND_MUL: // * a0=a0*a1
 		println("  # a0xa1, write the result into a0");
-		println("  mul a0, a0, a1");
+		println("  mul%s a0, a0, a1", suffix);
 		return;
 	case ND_DIV: // / a0=a0/a1
 		println("  # a0/a1, write the result into a0");
-		println("  div a0, a0, a1");
+		println("  div%s a0, a0, a1", suffix);
 		return;
 	case ND_EQ:
 	case ND_NE:
