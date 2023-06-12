@@ -84,10 +84,13 @@ static struct Scope *Scp = &(struct Scope){};
 // postfix = primary ("[" expr "]" | "." ident)* | "->" ident)*
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
+//         | "sizeof" "(" typeName ")"
 //         | "sizeof" unary
 //         | ident funcArgs?
 //         | str
 //         | num
+// typeName = declspec abstractDeclarator
+// abstractDeclarator = "*"* ("(" abstractDeclarator ")")? typeSuffix
 
 // funcall = ident "(" (assign ("," assign)*)? ")"
 
@@ -471,6 +474,44 @@ static struct Type *declarator(struct Token **rest, struct Token *token,
 	// variable name or func name
 	type->name = token;
 	return type;
+}
+
+// abstractDeclarator = "*"* ("(" abstractDeclarator ")")? typeSuffix
+static struct Type *abstract_declarator(struct Token **rest,
+					struct Token *token, struct Type *type)
+{
+	// "*"*
+	while (equal(token, "*")) {
+		type = pointer_to(type);
+		token = token->next;
+	}
+
+	// ("(" abstractDeclarator ")")?
+	if (equal(token, "(")) {
+		struct Token *start = token;
+		struct Type dummy = {};
+		// make token forword after ")"
+		abstract_declarator(&token, start->next, &dummy);
+		token = skip(token, ")");
+		// get the type suffix after the brackets, \
+		// type is the finished type, rest points to the semicolon
+		type = type_suffix(rest, token, type);
+		// parse type as a whole as base to construct and return the value of type
+		return abstract_declarator(&token, start->next, type);
+	}
+
+	// type_suffix
+	return type_suffix(rest, token, type);
+}
+
+// typeName = declspec abstractDeclarator
+// Get information about the type
+static struct Type *type_name(struct Token **rest, struct Token *token)
+{
+	// declspec
+	struct Type *type = declspec(&token, token, NULL);
+	// abstractDeclarator
+	return abstract_declarator(rest, token, type);
 }
 
 // declaration =
@@ -1084,12 +1125,15 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 // parse "(" ")" | num | variables
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
+//         | "sizeof" "(" typeName ")"
 //         | "sizeof" unary
 //         | ident funcArgs?
 //         | str
 //         | num
 static struct AstNode *primary(struct Token **rest, struct Token *token)
 {
+	struct Token *start = token;
+
 	// "(" "{" stmt+ "}" ")"
 	if (equal(token, "(") && equal(token->next, "{")) {
 		// GNU statement expression
@@ -1103,6 +1147,13 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 		struct AstNode *node = expr(&token, token->next);
 		*rest = skip(token, ")");
 		return node;
+	}
+	// "sizeof" "(" typeName ")"
+	if (equal(token, "sizeof") && equal(token->next, "(") &&
+	    is_typename(token->next->next)) {
+		struct Type *type = type_name(&token, token->next->next);
+		*rest = skip(token, ")");
+		return new_num_astnode(type->size, start);
 	}
 	// "sizeof" unary
 	if (equal(token, "sizeof")) {
