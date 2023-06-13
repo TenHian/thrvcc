@@ -1164,7 +1164,11 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 	if (!vsp->var || vsp->var->type->kind != TY_FUNC)
 		error_token(start, "not a function");
 
-	struct Type *type = vsp->var->type->return_type;
+	// func name type
+	struct Type *type = vsp->var->type;
+	// func parameters type
+	struct Type *param_type = type->params;
+
 	struct AstNode head = {};
 	struct AstNode *cur = &head;
 
@@ -1172,7 +1176,22 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 		if (cur != &head)
 			token = skip(token, ",");
 		// assign
-		cur->next = assign(&token, token);
+		struct AstNode *arg = assign(&token, token);
+		add_type(arg);
+
+		if (param_type) {
+			if (param_type->kind == TY_STRUCT ||
+			    param_type->kind == TY_UNION)
+				error_token(
+					arg->tok,
+					"passing struct or union is not supported yet");
+			// type conversion for parameters node
+			arg = new_cast(arg, param_type);
+			// forword, next parameter type
+			param_type = param_type->next;
+		}
+		// store parameter
+		cur->next = arg;
 		cur = cur->next;
 		add_type(cur);
 	}
@@ -1183,7 +1202,10 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 
 	// ident
 	node->func_name = strndup(start->location, start->len);
-	node->type = type;
+	// func type
+	node->func_type = type;
+	// return type
+	node->type = type->return_type;
 	node->args = head.next;
 	return node;
 }

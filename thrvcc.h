@@ -157,6 +157,7 @@ struct AstNode {
 
 	// func call
 	char *func_name; // func name
+	struct Type *func_type; // func type
 	struct AstNode *args; // func args
 
 	struct Obj_Var *var; // string that store var type

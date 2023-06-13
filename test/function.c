@@ -59,6 +59,11 @@ char int_to_char(int x)
 	return x;
 }
 
+int div_long(long a, long b)
+{
+	return a / b;
+}
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -93,6 +98,10 @@ int main()
 
 	ASSERT(3, *g1_ptr());
 	ASSERT(5, int_to_char(261));
+
+	// [70] Process function argument type conversions
+	printf("[70] Process function argument type conversions\n");
+	ASSERT(-5, div_long(-10, 2));
 
 	printf("OK\n");
 	return 0;
