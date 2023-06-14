@@ -260,6 +260,33 @@ static struct Token *read_string_literal(char *start)
 	return token;
 }
 
+// read character literals
+static struct Token *read_char_literal(char *start)
+{
+	char *p = start + 1;
+	// parse character case '\0'
+	if (*p == '\0')
+		error_at(start, "unclosed char literal");
+
+	// parse character
+	char c;
+	// escaped characters
+	if (*p == '\\')
+		c = read_escaped_char(&p, p + 1);
+	else
+		c = *p++;
+
+	// strchr() returns a string starting with ', or NULL if none
+	char *end = strchr(p, '\'');
+	if (!end)
+		error_at(p, "unclosed char literal");
+
+	// Constructs a NUM terminator with the value of C
+	struct Token *token = new_token(TK_NUM, start, end + 1);
+	token->val = c;
+	return token;
+}
+
 // convert the terminator named "return" to KEYWORD
 static void convert_keyword(struct Token *token)
 {
@@ -331,6 +358,14 @@ struct Token *lexer(char *filename, char *formula)
 		// parse string literal
 		if (*formula == '"') {
 			cur->next = read_string_literal(formula);
+			cur = cur->next;
+			formula += cur->len;
+			continue;
+		}
+
+		// parse char literal
+		if (*formula == '\'') {
+			cur->next = read_char_literal(formula);
 			cur = cur->next;
 			formula += cur->len;
 			continue;
