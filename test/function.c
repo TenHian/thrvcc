@@ -64,6 +64,15 @@ int div_long(long a, long b)
 	return a / b;
 }
 
+_Bool bool_fn_add(_Bool x)
+{
+	return x + 1;
+}
+_Bool bool_fn_sub(_Bool x)
+{
+	return x - 1;
+}
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -102,6 +111,15 @@ int main()
 	// [70] Process function argument type conversions
 	printf("[70] Process function argument type conversions\n");
 	ASSERT(-5, div_long(-10, 2));
+
+	// [71] Support for _Bool type
+	printf("[71] Support for _Bool type\n");
+	ASSERT(1, bool_fn_add(3));
+	ASSERT(0, bool_fn_sub(3));
+	ASSERT(1, bool_fn_add(-3));
+	ASSERT(0, bool_fn_sub(-3));
+	ASSERT(1, bool_fn_add(0));
+	ASSERT(1, bool_fn_sub(0));
 
 	printf("OK\n");
 	return 0;

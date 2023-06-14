@@ -203,6 +203,12 @@ static void cast(struct Type *from, struct Type *to)
 	if (to->kind == TY_VOID)
 		return;
 
+	if (to->kind == TY_BOOL) {
+		println("  # convert to bool type: if 0 assign 0, else assign 1");
+		println("  snez a0, a0");
+		return;
+	}
+
 	// Get the enumerated value of the type
 	int _from = get_typeid(from);
 	int _to = get_typeid(to);

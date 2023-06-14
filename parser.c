@@ -55,7 +55,7 @@ static struct Obj_Var *CurParseFn;
 
 // program = (typedef | functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
-// declspec = ("void" | "char" | "short" | "int" | "long"
+// declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "typedef"
 //             | structDecl | unionDecl | typedefName)+
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
@@ -323,7 +323,7 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 	Scp->tags = tsp;
 }
 
-// declspec = ("void" | "char" | "short" | "int" | "long"
+// declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "typedef"
 //             | structDecl | unionDecl | typedefName)+
 // declarator specifier
@@ -334,11 +334,12 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 	// tt is known that 'long int' and 'int long' are equivalent.
 	enum {
 		VOID = 1 << 0,
-		CHAR = 1 << 2,
-		SHORT = 1 << 4,
-		INT = 1 << 6,
-		LONG = 1 << 8,
-		OTHER = 1 << 10,
+		BOOL = 1 << 2,
+		CHAR = 1 << 4,
+		SHORT = 1 << 6,
+		INT = 1 << 8,
+		LONG = 1 << 10,
+		OTHER = 1 << 12,
 	};
 
 	struct Type *type = TyInt;
@@ -381,6 +382,8 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 		// Each step of Counter needs to have a legal value
 		if (equal(token, "void"))
 			Counter += VOID;
+		else if (equal(token, "_Bool"))
+			Counter += BOOL;
 		else if (equal(token, "char"))
 			Counter += CHAR;
 		else if (equal(token, "short"))
@@ -396,6 +399,9 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 		switch (Counter) {
 		case VOID:
 			type = TyVoid;
+			break;
+		case BOOL:
+			type = TyBool;
 			break;
 		case CHAR:
 			type = TyChar;
@@ -590,7 +596,7 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 static bool is_typename(struct Token *token)
 {
 	static char *keyword[] = {
-		"void", "char",	  "short", "int",
+		"void", "_Bool",  "char",  "short",   "int",
 		"long", "struct", "union", "typedef",
 	};
 
