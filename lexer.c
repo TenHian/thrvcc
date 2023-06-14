@@ -158,7 +158,7 @@ static bool is_keyword(struct Token *token)
 	static char *KeyWords[] = { "return", "if",	 "else",   "for",
 				    "while",  "int",	 "sizeof", "char",
 				    "struct", "union",	 "long",   "short",
-				    "void",   "typedef", "_Bool" };
+				    "void",   "typedef", "_Bool",  "enum" };
 
 	for (int i = 0; i < sizeof(KeyWords) / sizeof(*KeyWords); ++i) {
 		if (equal(token, KeyWords[i]))

@@ -61,6 +61,7 @@ enum TypeKind {
 	TY_SHORT, // short integer
 	TY_INT, // integer
 	TY_LONG, // long integer
+	TY_ENUM, // enum
 	TY_PTR, // pointer
 	TY_FUNC, // function
 	TY_ARRAY, // array
@@ -193,6 +194,8 @@ struct Type *pointer_to(struct Type *base);
 void add_type(struct AstNode *node);
 // array type
 struct Type *array_of(struct Type *base, int len);
+// enum type
+struct Type *enum_type(void);
 // function type
 struct Type *func_type(struct Type *return_ty);
 int align_to(int N, int Align);

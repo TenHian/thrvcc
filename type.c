@@ -21,7 +21,7 @@ bool is_integer(struct Type *type)
 {
 	return type->kind == TY_BOOL || type->kind == TY_CHAR ||
 	       type->kind == TY_SHORT || type->kind == TY_INT ||
-	       type->kind == TY_LONG;
+	       type->kind == TY_LONG || type->kind == TY_ENUM;
 }
 
 // copy type
@@ -55,6 +55,12 @@ struct Type *array_of(struct Type *base, int len)
 	type->base = base;
 	type->array_len = len;
 	return type;
+}
+
+// construct enum type
+struct Type *enum_type(void)
+{
+	return new_type(TY_ENUM, 4, 4);
 }
 
 // Get the type of accommodating left and right parts

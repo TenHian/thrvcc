@@ -9,15 +9,17 @@
 #include <threads.h>
 #include <time.h>
 
-// local/global variable scope or typedef scope
+// local/global variable, typedef or enum constant scope
 struct VarScope {
 	struct VarScope *next; // next variable scope
 	char *name; // variable scope name
 	struct Obj_Var *var; // variable
 	struct Type *_typedef; // alias
+	struct Type *_enum; // enum type
+	int enum_val; // enum constant value
 };
 
-// scope of structure label or union label
+// scope of structure label, union label or enum label
 struct TagScope {
 	struct TagScope *next;
 	char *name;
@@ -28,7 +30,8 @@ struct TagScope {
 struct Scope {
 	struct Scope *next; // pointing to a higher-level scope
 
-	// scope type : var scope or tag scope
+	// scope type : var(or typedef aka type alias) scope or\
+	// structure(or union) scope
 	struct VarScope *vars; // variables in current scope
 	struct TagScope *tags; // label of the structure in the current scope
 };
@@ -57,7 +60,11 @@ static struct Obj_Var *CurParseFn;
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "typedef"
-//             | structDecl | unionDecl | typedefName)+
+//             | structDecl | unionDecl | typedefName
+//             | enumSpecifier)+
+// enumSpecifier = ident? "{" enumList? "}"
+//                 | ident ("{" enumList? "}")?
+// enumList = ident ("=" num)? ("," ident ("=" num)?)*
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = "(" funcParams | "[" num "]" | typeSuffix | ε
 // funcParams = (param ("," param)*)? ")"
@@ -100,6 +107,7 @@ static struct Obj_Var *CurParseFn;
 
 static struct Type *declspec(struct Token **rest, struct Token *token,
 			     struct VarAttr *attr);
+static struct Type *enum_specifier(struct Token **rest, struct Token *token);
 static struct Type *declarator(struct Token **rest, struct Token *token,
 			       struct Type *ty);
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
@@ -325,7 +333,8 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "typedef"
-//             | structDecl | unionDecl | typedefName)+
+//             | structDecl | unionDecl | typedefName
+//             | enumSpecifier)+
 // declarator specifier
 static struct Type *declspec(struct Token **rest, struct Token *token,
 			     struct VarAttr *attr)
@@ -360,7 +369,8 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 
 		// Handling user-defined types
 		struct Type *type2 = find_typedef(token);
-		if (equal(token, "struct") || equal(token, "union") || type2) {
+		if (equal(token, "struct") || equal(token, "union") ||
+		    equal(token, "enum") || type2) {
 			if (Counter)
 				break;
 
@@ -368,6 +378,8 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 				type = struct_decl(&token, token->next);
 			else if (equal(token, "union"))
 				type = union_decl(&token, token->next);
+			else if (equal(token, "enum"))
+				type = enum_specifier(&token, token->next);
 			else {
 				// Set the type to the type pointed to by the type alias
 				type = type2;
@@ -547,6 +559,66 @@ static struct Type *type_name(struct Token **rest, struct Token *token)
 	return abstract_declarator(rest, token, type);
 }
 
+// get enum type val
+// enumSpecifier = ident? "{" enumList? "}"
+//               | ident ("{" enumList? "}")?
+// enumList      = ident ("=" num)? ("," ident ("=" num)?)*
+static struct Type *enum_specifier(struct Token **rest, struct Token *token)
+{
+	struct Type *type = enum_type();
+
+	// read label
+	// ident?
+	struct Token *tag = NULL;
+	if (token->kind == TK_IDENT) {
+		tag = token;
+		token = token->next;
+	}
+
+	// process with case none {}
+	if (tag && !equal(token, "{")) {
+		struct Type *ty = find_tag(tag);
+		if (!ty)
+			error_token(tag, "unknown enum type");
+		if (ty->kind != TY_ENUM)
+			error_token(tag, "not an enum tag");
+		*rest = token;
+		return ty;
+	}
+
+	// "{" enumList? "}"
+	token = skip(token, "{");
+
+	// enumList
+	// read enum list
+	int I = 0; // enum constants counter
+	int val = 0; // enum constants val
+	while (!equal(token, "}")) {
+		if (I++ > 0)
+			token = skip(token, ",");
+
+		char *name = get_ident(token);
+		token = token->next;
+
+		// determine if an assignment exists
+		if (equal(token, "=")) {
+			val = get_number(token->next);
+			token = token->next->next;
+		}
+
+		// store enum constant
+		struct VarScope *vsp = push_scope(name);
+		vsp->_enum = type;
+		vsp->enum_val = val++;
+	}
+
+	*rest = token->next;
+
+	if (tag)
+		push_tag_scope(tag, type);
+	return type;
+}
+
 // declaration =
 //    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
 static struct AstNode *declaration(struct Token **rest, struct Token *token,
@@ -597,7 +669,7 @@ static bool is_typename(struct Token *token)
 {
 	static char *keyword[] = {
 		"void", "_Bool",  "char",  "short",   "int",
-		"long", "struct", "union", "typedef",
+		"long", "struct", "union", "typedef", "enum",
 	};
 
 	for (int i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {
@@ -1262,13 +1334,22 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 			return func_call(rest, token);
 
 		// ident
-		// find var
+		// find var or enum constant
 		struct VarScope *vsp = find_var(token);
-		// if var not exist, creat a new var in global var list
-		if (!vsp || !vsp->var)
+		// if var or enum constant not exist, creat a new var in global var list
+		if (!vsp || (!vsp->var && !vsp->_enum))
 			error_token(token, "undefined variable");
+
+		struct AstNode *node;
+		// whether it is a variable
+		if (vsp->var)
+			node = new_var_astnode(vsp->var, token);
+		// else, enum constant
+		else
+			node = new_num_astnode(vsp->enum_val, token);
+
 		*rest = token->next;
-		return new_var_astnode(vsp->var, token);
+		return node;
 	}
 	// str
 	if (token->kind == TK_STR) {
