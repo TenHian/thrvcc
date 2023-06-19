@@ -1,5 +1,4 @@
 #include "thrvcc.h"
-#include <stdlib.h>
 
 struct Type *TyVoid = &(struct Type){ TY_VOID, 1, 1 };
 struct Type *TyBool = &(struct Type){ TY_BOOL, 1, 1 };

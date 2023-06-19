@@ -1,9 +1,8 @@
 #include "thrvcc.h"
 #include <ctype.h>
-#include <stdbool.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
+#include <strings.h>
 
 static char *CurLexStream; // reg the cur lexing stream
 static char *SourceFile; // current lexing file
@@ -289,6 +288,40 @@ static struct Token *read_char_literal(char *start)
 	return token;
 }
 
+// read integer number literal
+static struct Token *read_int_literal(char *start)
+{
+	char *p = start;
+
+	// read binary, octal, decimal, hexadecimal
+	// default decimal
+	int base = 10;
+	// compare the first 2 characters of two strings, \
+	// ignore case, and determine if they are numbers
+	if (!strncasecmp(p, "0x", 2) && isxdigit(p[2])) {
+		// hexadecimal
+		p += 2;
+		base = 16;
+	} else if (!strncasecmp(p, "0b", 2) && (p[2] == '0' || p[2] == '1')) {
+		// binary
+		p += 2;
+		base = 2;
+	} else if (*p == '0') {
+		// octal
+		base = 8;
+	}
+
+	// convert string to base binary number
+	long val = strtoul(p, &p, base);
+	if (isalnum(*p))
+		error_at(p, "invalid digit");
+
+	// construct num terminator
+	struct Token *token = new_token(TK_NUM, start, p);
+	token->val = val;
+	return token;
+}
+
 // convert the terminator named "return" to KEYWORD
 static void convert_keyword(struct Token *token)
 {
@@ -349,11 +382,11 @@ struct Token *lexer(char *filename, char *formula)
 
 		// parse digit
 		if (isdigit(*formula)) {
-			cur->next = new_token(TK_NUM, formula, formula);
+			// read number literal
+			cur->next = read_int_literal(formula);
+			// pointer forward
 			cur = cur->next;
-			const char *oldptr = formula;
-			cur->val = strtoul(formula, &formula, 10);
-			cur->len = formula - oldptr;
+			formula += cur->len;
 			continue;
 		}
 

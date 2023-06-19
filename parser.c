@@ -1,12 +1,5 @@
 #include "thrvcc.h"
-#include <assert.h>
 #include <math.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <threads.h>
 #include <time.h>
 
 // local/global variable, typedef or enum constant scope
