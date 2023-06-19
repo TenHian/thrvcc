@@ -82,7 +82,8 @@ static struct Obj_Var *CurParseFn;
 //      | exprStmt
 // expr stmt = expr? ;
 // expr = assign ("," expr)?
-// assign = equality ("=" assign)?
+// assign = equality (assignOp assign)?
+// assignOp = "=" | "+=" | "-=" | "*=" | "/="
 // equality = relational ("==" | "!=")
 // relational = add ("<" | "<=" | ">" | ">=")
 // add = mul ("+" | "-")
@@ -121,6 +122,10 @@ static struct AstNode *equality(struct Token **rest, struct Token *token);
 static struct AstNode *relational(struct Token **rest, struct Token *token);
 static struct AstNode *expr(struct Token **rest, struct Token *token);
 static struct AstNode *add(struct Token **rest, struct Token *token);
+static struct AstNode *new_add(struct AstNode *lhs, struct AstNode *rhs,
+			       struct Token *token);
+static struct AstNode *new_sub(struct AstNode *lhs, struct AstNode *rhs,
+			       struct Token *token);
 static struct AstNode *mul(struct Token **rest, struct Token *token);
 static struct AstNode *cast(struct Token **rest, struct Token *token);
 static struct Type *struct_decl(struct Token **rest, struct Token *token);
@@ -859,7 +864,41 @@ static struct AstNode *expr(struct Token **rest, struct Token *token)
 	return node;
 }
 
-// assign = equality
+// convert "A op= B" to "TMP = &A, *TMP = *TMP op B"
+static struct AstNode *to_assign(struct AstNode *binary)
+{
+	// A
+	add_type(binary->lhs);
+	// B
+	add_type(binary->rhs);
+	struct Token *token = binary->tok;
+
+	// TMP
+	struct Obj_Var *var = new_lvar("", pointer_to(binary->lhs->type));
+
+	// TMP = &A
+	struct AstNode *expr1 = new_binary_tree_node(
+		ND_ASSIGN, new_var_astnode(var, token),
+		new_unary_tree_node(ND_ADDR, binary->lhs, token), token);
+
+	// *TMP = *TMP op B
+	struct AstNode *expr2 = new_binary_tree_node(
+		ND_ASSIGN,
+		new_unary_tree_node(ND_DEREF, new_var_astnode(var, token),
+				    token),
+		new_binary_tree_node(
+			binary->kind,
+			new_unary_tree_node(ND_DEREF,
+					    new_var_astnode(var, token), token),
+			binary->rhs, token),
+		token);
+
+	// TMP = &A, *TMP = *TMP op B
+	return new_binary_tree_node(ND_COMMA, expr1, expr2, token);
+}
+
+// assign = equality (assignOp assign)?
+// assignOp = "=" | "+=" | "-=" | "*=" | "/="
 static struct AstNode *assign(struct Token **rest, struct Token *token)
 {
 	// equality
@@ -870,6 +909,23 @@ static struct AstNode *assign(struct Token **rest, struct Token *token)
 		return node = new_binary_tree_node(ND_ASSIGN, node,
 						   assign(rest, token->next),
 						   token);
+	// ("+=" assign)?
+	if (equal(token, "+="))
+		return to_assign(
+			new_add(node, assign(rest, token->next), token));
+	// ("-=" assign)?
+	if (equal(token, "-="))
+		return to_assign(
+			new_sub(node, assign(rest, token->next), token));
+	// ("*=" assign)?
+	if (equal(token, "*="))
+		return to_assign(new_binary_tree_node(
+			ND_MUL, node, assign(rest, token->next), token));
+	// ("/=" assign)?
+	if (equal(token, "/="))
+		return to_assign(new_binary_tree_node(
+			ND_DIV, node, assign(rest, token->next), token));
+
 	*rest = token;
 	return node;
 }
