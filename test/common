@@ -11,3 +11,6 @@ void assert(long expected, long actual, char *code)
 		exit(1);
 	}
 }
+
+// [74] Support for static func
+static int static_fn() { return 5; }

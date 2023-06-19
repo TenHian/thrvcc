@@ -527,8 +527,14 @@ void emit_text(struct Obj_Var *prog)
 		if (!fn->is_function || !fn->is_definition)
 			continue;
 
-		println("\n  # define global %s seg", fn->name);
-		println("  .globl %s", fn->name);
+		if (fn->is_static) {
+			println("\n  # define local %s func", fn->name);
+			println("  .local %s", fn->name);
+		} else {
+			println("\n  # define global %s func", fn->name);
+			println("  .globl %s", fn->name);
+		}
+
 		println("  # code segment labels");
 		println("  .text");
 

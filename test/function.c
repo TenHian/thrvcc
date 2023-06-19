@@ -73,6 +73,11 @@ _Bool bool_fn_sub(_Bool x)
 	return x - 1;
 }
 
+static int static_fn()
+{
+	return 3;
+}
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -120,6 +125,10 @@ int main()
 	ASSERT(0, bool_fn_sub(-3));
 	ASSERT(1, bool_fn_add(0));
 	ASSERT(1, bool_fn_sub(0));
+
+	// [74] Support static func
+	printf("[74] Support static func\n");
+	ASSERT(3, static_fn());
 
 	printf("OK\n");
 	return 0;

@@ -39,6 +39,7 @@ struct Scope {
 // Variable attributes
 struct VarAttr {
 	bool is_typedef; // Whether it is a type alias
+	bool is_static; // Whether it is in file scope
 };
 
 // all var add in this list while parse
@@ -59,7 +60,7 @@ static struct Obj_Var *CurParseFn;
 // program = (typedef | functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
-//             | "typedef"
+//             | "typedef" | "static"
 //             | structDecl | unionDecl | typedefName
 //             | enumSpecifier)+
 // enumSpecifier = ident? "{" enumList? "}"
@@ -332,7 +333,7 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 }
 
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
-//             | "typedef"
+//             | "typedef" | "static"
 //             | structDecl | unionDecl | typedefName
 //             | enumSpecifier)+
 // declarator specifier
@@ -357,12 +358,21 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 	// iterate through all Token of type name
 	while (is_typename(token)) {
 		// Handling the typedef keyword
-		if (equal(token, "typedef")) {
+		if (equal(token, "typedef") || equal(token, "static")) {
 			if (!attr)
 				error_token(
 					token,
 					"storage class specifier is not allowed in this context");
-			attr->is_typedef = true;
+			if (equal(token, "typedef"))
+				attr->is_typedef = true;
+			else
+				attr->is_static = true;
+
+			// "typedef" should not be used in conjunction with "static"
+			if (attr->is_typedef && attr->is_static)
+				error_token(
+					token,
+					"'typedef' should not be used in conjunction whith 'static'");
 			token = token->next;
 			continue;
 		}
@@ -668,8 +678,8 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 static bool is_typename(struct Token *token)
 {
 	static char *keyword[] = {
-		"void", "_Bool",  "char",  "short",   "int",
-		"long", "struct", "union", "typedef", "enum",
+		"void",	  "_Bool", "char",    "short", "int",	 "long",
+		"struct", "union", "typedef", "enum",  "static",
 	};
 
 	for (int i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {
@@ -1402,13 +1412,15 @@ static void create_params_lvars(struct Type *param)
 }
 
 // functionDefinition = declspec declarator "{" compoundStmt*
-static struct Token *function(struct Token *token, struct Type *base_type)
+static struct Token *function(struct Token *token, struct Type *base_type,
+			      struct VarAttr *attr)
 {
 	struct Type *type = declarator(&token, token, base_type);
 
 	struct Obj_Var *fn = new_gvar(get_ident(type->name), type);
 	fn->is_function = true;
 	fn->is_definition = !consume(&token, token, ";");
+	fn->is_static = attr->is_static;
 
 	// determine if there is no function definition
 	if (!fn->is_definition)
@@ -1478,7 +1490,7 @@ struct Obj_Var *parse(struct Token *token)
 
 		// function
 		if (is_function(token)) {
-			token = function(token, base_type);
+			token = function(token, base_type, &attr);
 			continue;
 		}
 		// global variable
