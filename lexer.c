@@ -141,8 +141,8 @@ static int from_hex(char c)
 static int read_punct(char *op_str)
 {
 	// case binary operator
-	static char *kw[] = { "==", "!=", "<=", ">=", "->",
-			      "+=", "-=", "*=", "/=" };
+	static char *kw[] = { "==", "!=", "<=", ">=", "->", "+=",
+			      "-=", "*=", "/=", "++", "--" };
 	for (int i = 0; i < sizeof(kw) / sizeof(*kw); ++i) {
 		if (is_start_with(op_str, kw[i]))
 			return strlen(kw[i]);

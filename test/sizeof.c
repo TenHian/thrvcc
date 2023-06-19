@@ -38,6 +38,13 @@ int main()
 	ASSERT(8, sizeof((long)-10 * 5));
 	ASSERT(8, sizeof((long)-10 / 5));
 
+	// [77] Support for prefix increment and decrement operators '++' '--'
+	printf("[77] Support for prefix increment and decrement operators '++' '--'\n");
+	ASSERT(1, ({
+		       char i;
+		       sizeof(++i);
+	       }));
+
 	printf("OK\n");
 	return 0;
 }

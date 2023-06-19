@@ -89,7 +89,7 @@ static struct Obj_Var *CurParseFn;
 // add = mul ("+" | "-")
 // mul = cast ("*" cast | "/" cast)*
 // cast = "(" typeName ")" cast | unary
-// unary = ("+" | "-" | "*" | "&") cast | postfix
+// unary = ("+" | "-" | "*" | "&") cast | ("++" | "--") unary | postfix
 // structMembers = (declspec declarator ( "," declarator)* ";")*
 // structDecl = structUnionDecl
 // unionDecl = structUnionDecl
@@ -1146,6 +1146,16 @@ static struct AstNode *unary(struct Token **rest, struct Token *token)
 	if (equal(token, "*"))
 		return new_unary_tree_node(ND_DEREF, cast(rest, token->next),
 					   token);
+	// convert '++i' to 'i+=1'
+	// '++' unary
+	if (equal(token, "++"))
+		return to_assign(new_add(unary(rest, token->next),
+					 new_num_astnode(1, token), token));
+	// convert '--i' to 'i-=1'
+	// '--' unary
+	if (equal(token, "--"))
+		return to_assign(new_sub(unary(rest, token->next),
+					 new_num_astnode(1, token), token));
 	// postfix
 	return postfix(rest, token);
 }
