@@ -45,6 +45,13 @@ int main()
 		       sizeof(++i);
 	       }));
 
+	// [78] Support for postfix increment and decrement operators '++' '--'
+	printf("[78] Support for postfix increment and decrement operators '++' '--'\n");
+	ASSERT(1, ({
+		       char i;
+		       sizeof(i++);
+	       }));
+
 	printf("OK\n");
 	return 0;
 }

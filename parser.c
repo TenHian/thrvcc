@@ -94,7 +94,7 @@ static struct Obj_Var *CurParseFn;
 // structDecl = structUnionDecl
 // unionDecl = structUnionDecl
 // structUnionDecl = ident? ("{" structMembers)?
-// postfix = primary ("[" expr "]" | "." ident)* | "->" ident)*
+// postfix = primary ("[" expr "]" | "." ident)* | "->" ident | "++" | "--")*
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
 //         | "sizeof" "(" typeName ")"
@@ -1281,6 +1281,19 @@ static struct AstNode *struct_ref(struct AstNode *lhs, struct Token *token)
 	return node;
 }
 
+// convert 'i++' to '(typeof i)((i += 1) - 1)'
+// increment decrement
+static struct AstNode *new_inc_dec(struct AstNode *node, struct Token *token,
+				   int add_end)
+{
+	add_type(node);
+	return new_cast(
+		new_add(to_assign(new_add(node, new_num_astnode(add_end, token),
+					  token)),
+			new_num_astnode(-add_end, token), token),
+		node->type);
+}
+
 // postfix = primary ("[" expr "]" | "." ident)*
 static struct AstNode *postfix(struct Token **rest, struct Token *token)
 {
@@ -1312,6 +1325,19 @@ static struct AstNode *postfix(struct Token **rest, struct Token *token)
 			token = token->next->next;
 			continue;
 		}
+
+		if (equal(token, "++")) {
+			node = new_inc_dec(node, token, 1);
+			token = token->next;
+			continue;
+		}
+
+		if (equal(token, "--")) {
+			node = new_inc_dec(node, token, -1);
+			token = token->next;
+			continue;
+		}
+
 		*rest = token;
 		return node;
 	}
