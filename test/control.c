@@ -104,6 +104,22 @@ int main()
 		       j;
 	       }));
 
+	// [75] Support for defining local variables in the loop scope
+	printf("[75] Support for defining local variables in the loop scope\n");
+	ASSERT(55, ({
+		       int j = 0;
+		       for (int i = 0; i <= 10; i = i + 1)
+			       j = j + i;
+		       j;
+	       }));
+	ASSERT(3, ({
+		       int i = 3;
+		       int j = 0;
+		       for (int i = 0; i <= 10; i = i + 1)
+			       j = j + i;
+		       i;
+	       }));
+
 	printf("OK\n");
 	return 0;
 }

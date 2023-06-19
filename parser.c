@@ -732,8 +732,17 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		// "("
 		token = skip(token->next, "(");
 
+		// enter 'for' loop scope
+		enter_scope();
+
 		// exprStmt
-		node->init = exprstmt(&token, token);
+		if (is_typename(token)) {
+			// Initialize loop control variables
+			struct Type *base_ty = declspec(&token, token, NULL);
+			node->init = declaration(&token, token, base_ty);
+		} else {
+			node->init = exprstmt(&token, token);
+		}
 
 		// expr?
 		if (!equal(token, ";"))
@@ -749,6 +758,10 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 
 		// stmt
 		node->then_ = stmt(rest, token);
+
+		// leave 'for' loop scope
+		leave_scope();
+
 		return node;
 	}
 	// "while" "(" expr ")" stmt
