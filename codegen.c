@@ -323,6 +323,10 @@ static void gen_expr(struct AstNode *node)
 		println("  # a0/a1, write the result into a0");
 		println("  div%s a0, a0, a1", suffix);
 		return;
+	case ND_MOD:
+		println("  # a0 %% a1, write result in a0");
+		println("  rem%s a0, a0, a1", suffix);
+		return;
 	case ND_EQ:
 	case ND_NE:
 		// a0=a0^a1

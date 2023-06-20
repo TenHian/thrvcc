@@ -76,11 +76,11 @@ static struct Obj_Var *CurParseFn;
 // expr stmt = expr? ;
 // expr = assign ("," expr)?
 // assign = equality (assignOp assign)?
-// assignOp = "=" | "+=" | "-=" | "*=" | "/="
+// assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%="
 // equality = relational ("==" | "!=")
 // relational = add ("<" | "<=" | ">" | ">=")
 // add = mul ("+" | "-")
-// mul = cast ("*" cast | "/" cast)*
+// mul = cast ("*" cast | "/" cast | "%" cast)*
 // cast = "(" typeName ")" cast | unary
 // unary = ("+" | "-" | "*" | "&" | "!" | "~") cast
 //       | ("++" | "--") unary
@@ -893,7 +893,7 @@ static struct AstNode *to_assign(struct AstNode *binary)
 }
 
 // assign = equality (assignOp assign)?
-// assignOp = "=" | "+=" | "-=" | "*=" | "/="
+// assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%="
 static struct AstNode *assign(struct Token **rest, struct Token *token)
 {
 	// equality
@@ -920,6 +920,10 @@ static struct AstNode *assign(struct Token **rest, struct Token *token)
 	if (equal(token, "/="))
 		return to_assign(new_binary_tree_node(
 			ND_DIV, node, assign(rest, token->next), token));
+	// ("%=" assign)?
+	if (equal(token, "%="))
+		return to_assign(new_binary_tree_node(
+			ND_MOD, node, assign(rest, token->next), token));
 
 	*rest = token;
 	return node;
@@ -1076,13 +1080,14 @@ static struct AstNode *add(struct Token **rest, struct Token *token)
 		return node;
 	}
 }
-// mul = cast ("*" cast | "/" cast)*
+
+// mul = cast ("*" cast | "/" cast | "%" cast)*
 static struct AstNode *mul(struct Token **rest, struct Token *token)
 {
 	// cast
 	struct AstNode *node = cast(&token, token);
 
-	// ("*" cast | "/" cast)*
+	// ("*" cast | "/" cast | "%" cast)*
 	while (true) {
 		struct Token *start = token;
 		// "*" cast
@@ -1095,6 +1100,12 @@ static struct AstNode *mul(struct Token **rest, struct Token *token)
 		if (equal(token, "/")) {
 			node = new_binary_tree_node(
 				ND_DIV, node, cast(&token, token->next), start);
+			continue;
+		}
+		// "%" cast
+		if (equal(token, "%")) {
+			node = new_binary_tree_node(
+				ND_MOD, node, cast(&token, token->next), start);
 			continue;
 		}
 

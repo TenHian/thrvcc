@@ -30,6 +30,7 @@ enum NodeKind {
 	ND_DIV,
 	ND_MUL,
 	ND_NEG,
+	ND_MOD, // %
 	// Relational Operators
 	ND_EQ, // ==
 	ND_NE, // !=

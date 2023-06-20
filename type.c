@@ -110,6 +110,7 @@ void add_type(struct AstNode *node)
 	case ND_SUB:
 	case ND_MUL:
 	case ND_DIV:
+	case ND_MOD:
 		// type conversion for left and right parts
 		arith_conv(&node->lhs, &node->rhs);
 		node->type = node->lhs->type;
