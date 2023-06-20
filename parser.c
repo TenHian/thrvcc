@@ -75,8 +75,11 @@ static struct Obj_Var *CurParseFn;
 //      | exprStmt
 // expr stmt = expr? ;
 // expr = assign ("," expr)?
-// assign = equality (assignOp assign)?
-// assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%="
+// assign = bitOr (assignOp assign)?
+// bitOr = bitXor ("|" bitXor)*
+// bitXor = bitAnd ("^" bitAnd)*
+// bitAnd = equality ("&" equality)*
+// assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^="
 // equality = relational ("==" | "!=")
 // relational = add ("<" | "<=" | ">" | ">=")
 // add = mul ("+" | "-")
@@ -113,6 +116,9 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token);
 static struct AstNode *assign(struct Token **rest, struct Token *token);
+static struct AstNode *bit_or(struct Token **rest, struct Token *token);
+static struct AstNode *bit_xor(struct Token **rest, struct Token *token);
+static struct AstNode *bit_and(struct Token **rest, struct Token *token);
 static struct AstNode *equality(struct Token **rest, struct Token *token);
 static struct AstNode *relational(struct Token **rest, struct Token *token);
 static struct AstNode *expr(struct Token **rest, struct Token *token);
@@ -892,12 +898,13 @@ static struct AstNode *to_assign(struct AstNode *binary)
 	return new_binary_tree_node(ND_COMMA, expr1, expr2, token);
 }
 
-// assign = equality (assignOp assign)?
-// assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%="
+// assign = bitOr (assignOp assign)?
+// assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^="
 static struct AstNode *assign(struct Token **rest, struct Token *token)
 {
 	// equality
-	struct AstNode *node = equality(&token, token);
+	struct AstNode *node = bit_or(&token, token);
+
 	// there may be recursive assignments, such as a=b=1
 	// ("=" assign)?
 	if (equal(token, "="))
@@ -924,7 +931,59 @@ static struct AstNode *assign(struct Token **rest, struct Token *token)
 	if (equal(token, "%="))
 		return to_assign(new_binary_tree_node(
 			ND_MOD, node, assign(rest, token->next), token));
+	// ("&=" assign)?
+	if (equal(token, "&="))
+		return to_assign(new_binary_tree_node(
+			ND_BITAND, node, assign(rest, token->next), token));
+	// ("!=" assign)?
+	if (equal(token, "|="))
+		return to_assign(new_binary_tree_node(
+			ND_BITOR, node, assign(rest, token->next), token));
 
+	// ("^=" assign)?
+	if (equal(token, "^="))
+		return to_assign(new_binary_tree_node(
+			ND_BITXOR, node, assign(rest, token->next), token));
+
+	*rest = token;
+	return node;
+}
+
+// bitOr = bitXor ("|" bitXor)*
+static struct AstNode *bit_or(struct Token **rest, struct Token *token)
+{
+	struct AstNode *node = bit_xor(&token, token);
+	while (equal(token, "|")) {
+		struct Token *start = token;
+		node = new_binary_tree_node(
+			ND_BITOR, node, bit_xor(&token, token->next), start);
+	}
+	*rest = token;
+	return node;
+}
+
+// bitXor = bitAnd ("^" bitAnd)*
+static struct AstNode *bit_xor(struct Token **rest, struct Token *token)
+{
+	struct AstNode *node = bit_and(&token, token);
+	while (equal(token, "^")) {
+		struct Token *start = token;
+		node = new_binary_tree_node(
+			ND_BITXOR, node, bit_and(&token, token->next), start);
+	}
+	*rest = token;
+	return node;
+}
+
+// bitAnd = equality ("&" equality)*
+static struct AstNode *bit_and(struct Token **rest, struct Token *token)
+{
+	struct AstNode *node = equality(&token, token);
+	while (equal(token, "&")) {
+		struct Token *start = token;
+		node = new_binary_tree_node(
+			ND_BITAND, node, equality(&token, token->next), start);
+	}
 	*rest = token;
 	return node;
 }

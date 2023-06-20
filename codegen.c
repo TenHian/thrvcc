@@ -327,6 +327,18 @@ static void gen_expr(struct AstNode *node)
 		println("  # a0 %% a1, write result in a0");
 		println("  rem%s a0, a0, a1", suffix);
 		return;
+	case ND_BITAND:
+		println("  # a0 & a1, write result in a0");
+		println("  and a0, a0, a1");
+		return;
+	case ND_BITOR:
+		println("  # a0 | a1, write result in a0");
+		println("  or a0, a0, a1");
+		return;
+	case ND_BITXOR:
+		println("  # ao ^ a1, write result in a0");
+		println("  xor a0, a0, a1");
+		return;
 	case ND_EQ:
 	case ND_NE:
 		// a0=a0^a1
