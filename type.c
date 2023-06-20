@@ -142,6 +142,9 @@ void add_type(struct AstNode *node)
 	case ND_FUNCALL:
 		node->type = node->func_type->return_type;
 		return;
+	case ND_NOT:
+		node->type = TyInt;
+		return;
 	case ND_VAR:
 		node->type = node->var->type;
 		return;

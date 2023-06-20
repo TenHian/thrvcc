@@ -43,6 +43,8 @@ enum NodeKind {
 	// Pointer Operators
 	ND_ADDR, // get address
 	ND_DEREF, // dereference
+	// Logical Operators
+	ND_NOT, // !
 
 	ND_RETURN, // return
 	ND_IF, // if

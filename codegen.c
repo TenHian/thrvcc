@@ -263,6 +263,12 @@ static void gen_expr(struct AstNode *node)
 		gen_expr(node->lhs);
 		cast(node->lhs->type, node->type);
 		return;
+	case ND_NOT:
+		gen_expr(node->lhs);
+		println("  # NOT operation");
+		// if a0=0 set to 1, otherwise 0
+		println("  seqz a0, a0");
+		return;
 	case ND_FUNCALL: {
 		// args count
 		int args_count = 0;
