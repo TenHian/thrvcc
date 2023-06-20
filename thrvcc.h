@@ -45,6 +45,7 @@ enum NodeKind {
 	ND_DEREF, // dereference
 	// Logical Operators
 	ND_NOT, // !
+	ND_BITNOT, // ~
 
 	ND_RETURN, // return
 	ND_IF, // if

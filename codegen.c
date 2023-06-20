@@ -269,6 +269,12 @@ static void gen_expr(struct AstNode *node)
 		// if a0=0 set to 1, otherwise 0
 		println("  seqz a0, a0");
 		return;
+	case ND_BITNOT:
+		gen_expr(node->lhs);
+		println("  # NOT by bit");
+		// not a0, a0  equal to  xori a0, a0, -1
+		println("  not a0, a0");
+		return;
 	case ND_FUNCALL: {
 		// args count
 		int args_count = 0;
