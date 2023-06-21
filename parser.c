@@ -56,8 +56,10 @@ static struct Obj_Var *CurParseFn;
 static struct AstNode *Gotos;
 static struct AstNode *Labels;
 
-// current target that 'goto'
+// current target that 'break'
 static char *BrkLabel;
+// current target that 'continue'
+static char *CtueLabel;
 
 // program = (typedef | functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
@@ -83,6 +85,7 @@ static char *BrkLabel;
 //        | "while" "(" expr ")" stmt
 //        | "goto" ident ";"
 //        | "break" ";"
+//        | "continue" ";"
 //        | ident ":" stmt
 //        | "{" compoundStmt
 //        | exprStmt
@@ -752,6 +755,7 @@ static bool is_typename(struct Token *token)
 //        | "while" "(" expr ")" stmt
 //        | "goto" ident ";"
 //        | "break" ";"
+//        | "continue" ";"
 //        | ident ":" stmt
 //        | "{" compoundStmt
 //        | exprStmt
@@ -792,10 +796,12 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		// enter 'for' loop scope
 		enter_scope();
 
-		// store current brk_label
+		// store current brk_label and ctue_label
 		char *brk = BrkLabel;
-		// set name for brk_label
+		char *ctue = CtueLabel;
+		// set name for brk_label and ctue_label
 		BrkLabel = node->brk_label = new_unique_name();
+		CtueLabel = node->ctue_label = new_unique_name();
 
 		// exprStmt
 		if (is_typename(token)) {
@@ -823,8 +829,9 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 
 		// leave 'for' loop scope
 		leave_scope();
-		// restore the previous brk_label
+		// restore the previous brk_label and ctue_label
 		BrkLabel = brk;
+		CtueLabel = ctue;
 
 		return node;
 	}
@@ -838,16 +845,19 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		// ")"
 		token = skip(token, ")");
 
-		// store current brk_label
+		// store current brk_label and ctue_label
 		char *brk = BrkLabel;
-		// set name for brk_label
+		char *ctue = CtueLabel;
+		// set name for brk_label and ctue_label
 		BrkLabel = node->brk_label = new_unique_name();
+		CtueLabel = node->ctue_label = new_unique_name();
 
 		// stmt
 		node->then_ = stmt(rest, token);
 
-		// restore the previous brk_label
+		// restore the previous brk_label and ctue_label
 		BrkLabel = brk;
+		CtueLabel = ctue;
 
 		return node;
 	}
@@ -870,6 +880,17 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		// jump to brk_label
 		struct AstNode *node = new_astnode(ND_GOTO, token);
 		node->unique_label = BrkLabel;
+		*rest = skip(token->next, ";");
+		return node;
+	}
+
+	// "continue" ";"
+	if (equal(token, "continue")) {
+		if (!CtueLabel)
+			error_token(token, "stray continue");
+		// jump to ctue_label
+		struct AstNode *node = new_astnode(ND_GOTO, token);
+		node->unique_label = CtueLabel;
 		*rest = skip(token->next, ";");
 		return node;
 	}

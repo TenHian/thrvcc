@@ -168,6 +168,8 @@ struct AstNode {
 
 	// 'break' label
 	char *brk_label;
+	// 'continue' label
+	char *ctue_label;
 
 	// code block or statement express(GNU)
 	struct AstNode *body;

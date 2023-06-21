@@ -471,6 +471,8 @@ static void gen_stmt(struct AstNode *node)
 		// gen loop's body
 		println("\n# then statement%d", C);
 		gen_stmt(node->then_);
+		// ctue_label
+		println("%s:", node->ctue_label);
 		// process loop's increase stmt
 		if (node->increase) {
 			println("\n# increase statement%d", C);

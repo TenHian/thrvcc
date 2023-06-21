@@ -161,7 +161,7 @@ static bool is_keyword(struct Token *token)
 		"return", "if",	    "else", "for",     "while",
 		"int",	  "sizeof", "char", "struct",  "union",
 		"long",	  "short",  "void", "typedef", "_Bool",
-		"enum",	  "static", "goto", "break",
+		"enum",	  "static", "goto", "break",   "continue",
 	};
 
 	for (int i = 0; i < sizeof(KeyWords) / sizeof(*KeyWords); ++i) {
