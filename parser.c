@@ -1,6 +1,7 @@
 #include "thrvcc.h"
 #include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 
@@ -74,10 +75,10 @@ static struct AstNode *CurSwitch;
 //             | enumSpecifier)+
 // enumSpecifier = ident? "{" enumList? "}"
 //                 | ident ("{" enumList? "}")?
-// enumList = ident ("=" num)? ("," ident ("=" num)?)*
+// enumList = ident ("=" constExpr)? ("," ident ("=" constExpr)?)*
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = "(" funcParams | "[" arrayDimensions | ε
-// arrayDimensions = num? "]" typeSuffix
+// arrayDimensions = constExpr? "]" typeSuffix
 // funcParams = (param ("," param)*)? ")"
 // param = declspec declarator
 
@@ -87,7 +88,7 @@ static struct AstNode *CurSwitch;
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "switch" "(" expr ")" stmt
-//        | "case" num ":" stmt
+//        | "case" constExpr ":" stmt
 //        | "default" ":" stmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
@@ -147,6 +148,8 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 				   struct Type *base_ty);
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token);
+static struct AstNode *expr(struct Token **rest, struct Token *token);
+static int64_t const_expr(struct Token **rest, struct Token *token);
 static struct AstNode *assign(struct Token **rest, struct Token *token);
 static struct AstNode *conditional(struct Token **rest, struct Token *token);
 static struct AstNode *log_or(struct Token **rest, struct Token *token);
@@ -357,14 +360,6 @@ static struct Type *find_typedef(struct Token *token)
 	return NULL;
 }
 
-// get number
-static long get_number(struct Token *token)
-{
-	if (token->kind != TK_NUM)
-		error_token(token, "expected a number");
-	return token->val;
-}
-
 static void push_tag_scope(struct Token *token, struct Type *type)
 {
 	struct TagScope *tsp = calloc(1, sizeof(struct TagScope));
@@ -531,7 +526,7 @@ static struct Type *func_params(struct Token **rest, struct Token *token,
 }
 
 // Array Dimension
-// arrayDimensions = num? "]" typeSuffix
+// arrayDimensions = constExpr? "]" typeSuffix
 static struct Type *array_dimensions(struct Token **rest, struct Token *token,
 				     struct Type *type)
 {
@@ -542,8 +537,8 @@ static struct Type *array_dimensions(struct Token **rest, struct Token *token,
 	}
 
 	// the case with array dimensions
-	int sz = get_number(token);
-	token = skip(token->next, "]");
+	int sz = const_expr(&token, token);
+	token = skip(token, "]");
 	type = type_suffix(rest, token, type);
 	return array_of(type, sz);
 }
@@ -640,7 +635,7 @@ static struct Type *type_name(struct Token **rest, struct Token *token)
 // get enum type val
 // enumSpecifier = ident? "{" enumList? "}"
 //               | ident ("{" enumList? "}")?
-// enumList      = ident ("=" num)? ("," ident ("=" num)?)*
+// enumList      = ident ("=" constExpr)? ("," ident ("=" constExpr)?)*
 static struct Type *enum_specifier(struct Token **rest, struct Token *token)
 {
 	struct Type *type = enum_type();
@@ -679,10 +674,8 @@ static struct Type *enum_specifier(struct Token **rest, struct Token *token)
 		token = token->next;
 
 		// determine if an assignment exists
-		if (equal(token, "=")) {
-			val = get_number(token->next);
-			token = token->next->next;
-		}
+		if (equal(token, "="))
+			val = const_expr(&token, token->next);
 
 		// store enum constant
 		struct VarScope *vsp = push_scope(name);
@@ -765,7 +758,7 @@ static bool is_typename(struct Token *token)
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "switch" "(" expr ")" stmt
-//        | "case" num ":" stmt
+//        | "case" constExpr ":" stmt
 //        | "default" ":" stmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
@@ -830,15 +823,15 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		BrkLabel = brk;
 		return node;
 	}
-	// "case" num ":" stmt
+	// "case" constExpr ":" stmt
 	if (equal(token, "case")) {
 		if (!CurSwitch)
 			error_token(token, "stray case");
-		// val after case
-		int val = get_number(token->next);
 
 		struct AstNode *node = new_astnode(ND_CASE, token);
-		token = skip(token->next->next, ":");
+		// the val after case
+		int val = const_expr(&token, token->next);
+		token = skip(token, ":");
 		node->label = new_unique_name();
 		// stmt in case
 		node->lhs = stmt(rest, token);
@@ -1062,6 +1055,86 @@ static struct AstNode *expr(struct Token **rest, struct Token *token)
 
 	*rest = token;
 	return node;
+}
+
+// Compute a constant expression for a given node
+static int64_t eval(struct AstNode *node)
+{
+	add_type(node);
+
+	switch (node->kind) {
+	case ND_ADD:
+		return eval(node->lhs) + eval(node->rhs);
+	case ND_SUB:
+		return eval(node->lhs) - eval(node->rhs);
+	case ND_MUL:
+		return eval(node->lhs) * eval(node->rhs);
+	case ND_DIV:
+		return eval(node->lhs) / eval(node->rhs);
+	case ND_NEG:
+		return -eval(node->lhs);
+	case ND_MOD:
+		return eval(node->lhs) % eval(node->rhs);
+	case ND_BITAND:
+		return eval(node->lhs) & eval(node->rhs);
+	case ND_BITOR:
+		return eval(node->lhs) | eval(node->rhs);
+	case ND_BITXOR:
+		return eval(node->lhs) ^ eval(node->rhs);
+	case ND_SHL:
+		return eval(node->lhs) << eval(node->rhs);
+	case ND_SHR:
+		return eval(node->lhs) >> eval(node->rhs);
+	case ND_EQ:
+		return eval(node->lhs) == eval(node->rhs);
+	case ND_NE:
+		return eval(node->lhs) != eval(node->rhs);
+	case ND_LT:
+		return eval(node->lhs) < eval(node->rhs);
+	case ND_LE:
+		return eval(node->lhs) <= eval(node->rhs);
+	case ND_COND:
+		return eval(node->condition) ? eval(node->then_) :
+					       eval(node->else_);
+	case ND_COMMA:
+		return eval(node->rhs);
+	case ND_NOT:
+		return !eval(node->lhs);
+	case ND_BITNOT:
+		return ~eval(node->lhs);
+	case ND_LOGAND:
+		return eval(node->lhs) && eval(node->rhs);
+	case ND_LOGOR:
+		return eval(node->lhs) || eval(node->rhs);
+	case ND_CAST:
+		if (is_integer(node->type)) {
+			switch (node->type->size) {
+			case 1:
+				return (uint8_t)eval(node->lhs);
+			case 2:
+				return (uint16_t)eval(node->lhs);
+			case 4:
+				return (uint32_t)eval(node->lhs);
+			}
+		}
+		return eval(node->lhs);
+	case ND_NUM:
+		return node->val;
+	default:
+		break;
+	}
+
+	error_token(node->tok, "not a compile-time constant");
+	return -1;
+}
+
+// Parsing constant expressions
+static int64_t const_expr(struct Token **rest, struct Token *token)
+{
+	// construct constant expression
+	struct AstNode *node = conditional(rest, token);
+	// compute constant expression
+	return eval(node);
 }
 
 // convert "A op= B" to "TMP = &A, *TMP = *TMP op B"
