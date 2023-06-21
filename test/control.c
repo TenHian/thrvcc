@@ -167,6 +167,15 @@ int main()
 		       i;
 	       }));
 
+	// [89] Resolve conflicts between typedef and label
+	printf("[89] Resolve conflicts between typedef and label\n");
+	ASSERT(1, ({
+		       typedef int foo;
+		       goto foo;
+       foo:;
+		       1;
+	       }));
+
 	printf("OK\n");
 	return 0;
 }

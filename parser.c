@@ -875,7 +875,7 @@ static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 	// (declaration | stmt)* "}"
 	while (!equal(token, "}")) {
 		// declaration
-		if (is_typename(token)) {
+		if (is_typename(token) && !equal(token->next, ":")) {
 			struct VarAttr attr = {};
 			struct Type *base_ty = declspec(&token, token, &attr);
 
