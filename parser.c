@@ -61,6 +61,11 @@ static char *BrkLabel;
 // current target that 'continue'
 static char *CtueLabel;
 
+// if a switch statement is being parsed, \
+// it points to the node representing the switch.
+// else, NULL.
+static struct AstNode *CurSwitch;
+
 // program = (typedef | functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
@@ -81,6 +86,9 @@ static char *CtueLabel;
 // 	declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
+//        | "switch" "(" expr ")" stmt
+//        | "case" num ":" stmt
+//        | "default" ":" stmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
 //        | "goto" ident ";"
@@ -751,6 +759,9 @@ static bool is_typename(struct Token *token)
 // parse stmt
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
+//        | "switch" "(" expr ")" stmt
+//        | "case" num ":" stmt
+//        | "default" ":" stmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
 //        | "goto" ident ";"
@@ -785,6 +796,66 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		if (equal(token, "else"))
 			node->else_ = stmt(&token, token->next);
 		*rest = token;
+		return node;
+	}
+	// "switch" "(" expr ")" stmt
+	if (equal(token, "switch")) {
+		struct AstNode *node = new_astnode(ND_SWITCH, token);
+		token = skip(token->next, "(");
+		node->condition = expr(&token, token);
+		token = skip(token, ")");
+
+		// reg current CurSwitch
+		struct AstNode *sw = CurSwitch;
+		// set current CurSwitch
+		CurSwitch = node;
+
+		// store current brk_label
+		char *brk = BrkLabel;
+		// set current brk_label
+		BrkLabel = node->brk_label = new_unique_name();
+
+		// enter and parse all cases
+		// stmt
+		node->then_ = stmt(rest, token);
+
+		// restore current CurSwitch
+		CurSwitch = sw;
+		// restore current brk_label
+		BrkLabel = brk;
+		return node;
+	}
+	// "case" num ":" stmt
+	if (equal(token, "case")) {
+		if (!CurSwitch)
+			error_token(token, "stray case");
+		// val after case
+		int val = get_number(token->next);
+
+		struct AstNode *node = new_astnode(ND_CASE, token);
+		token = skip(token->next->next, ":");
+		node->label = new_unique_name();
+		// stmt in case
+		node->lhs = stmt(rest, token);
+		// val that case mathes
+		node->val = val;
+		// store old CurSwitch list header into node->case_next
+		node->case_next = CurSwitch->case_next;
+		// store node into CurSwitch->case_next
+		CurSwitch->case_next = node;
+		return node;
+	}
+	// "default" ":" stmt
+	if (equal(token, "default")) {
+		if (!CurSwitch)
+			error_token(token, "stray default");
+
+		struct AstNode *node = new_astnode(ND_CASE, token);
+		token = skip(token->next, ":");
+		node->label = new_unique_name();
+		node->lhs = stmt(rest, token);
+		// store into CurSwitch->default_case
+		CurSwitch->default_case = node;
 		return node;
 	}
 	// "for" "(" exprStmt expr? ";" expr? ")" stmt

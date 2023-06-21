@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 // output file
 static FILE *OutputFile;
@@ -486,6 +487,33 @@ static void gen_stmt(struct AstNode *node)
 		println("%s:", node->brk_label);
 		return;
 	}
+	case ND_SWITCH:
+		println("\n# ====== switch statement ======");
+		gen_expr(node->condition);
+
+		println("  # Iterate through case label that equal a0's val");
+		for (struct AstNode *N = node->case_next; N; N = N->case_next) {
+			println("  li t0, %ld", N->val);
+			println("  beq a0, t0, %s", N->label);
+		}
+
+		if (node->default_case) {
+			println("  # jump to default label");
+			println("  j %s", node->default_case->label);
+		}
+
+		println("  # end switch statement, jump to break label");
+		println("  j %s", node->brk_label);
+		// generate case label statement
+		gen_stmt(node->then_);
+		println("# the break label of switch statement, end switch");
+		println("%s:", node->brk_label);
+		return;
+	case ND_CASE:
+		println("# case label, its val equal to %ld", node->val);
+		println("%s:", node->label);
+		gen_stmt(node->lhs);
+		return;
 	case ND_BLOCK:
 		for (struct AstNode *nd = node->body; nd; nd = nd->next)
 			gen_stmt(nd);

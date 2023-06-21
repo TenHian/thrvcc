@@ -57,6 +57,8 @@ enum NodeKind {
 	ND_RETURN, // return
 	ND_IF, // if
 	ND_FOR, // for or while
+	ND_SWITCH, // switch
+	ND_CASE, // case
 	ND_BLOCK, // code block
 	ND_GOTO, // goto
 	ND_LABEL, // goto label
@@ -186,6 +188,10 @@ struct AstNode {
 	char *label;
 	char *unique_label;
 	struct AstNode *goto_next;
+
+	// switch and case
+	struct AstNode *case_next;
+	struct AstNode *default_case;
 
 	struct Obj_Var *var; // string that store var type
 	int64_t val;
