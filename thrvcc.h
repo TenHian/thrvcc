@@ -117,6 +117,7 @@ struct Type {
 struct Member {
 	struct Member *next;
 	struct Type *type;
+	struct Token *tok; // to improve error-reporting
 	struct Token *name;
 	int offset;
 };

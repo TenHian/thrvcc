@@ -52,6 +52,11 @@ int main()
 		       sizeof(i++);
 	       }));
 
+	// [85] Add the concept of incomplete array type
+	printf("[85] Add the concept of incomplete array type\n");
+	ASSERT(8, sizeof(int(*)[10]));
+	ASSERT(8, sizeof(int(*)[][10]));
+
 	printf("OK\n");
 	return 0;
 }

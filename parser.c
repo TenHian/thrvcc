@@ -1,5 +1,6 @@
 #include "thrvcc.h"
 #include <math.h>
+#include <stdbool.h>
 #include <time.h>
 
 // local/global variable, typedef or enum constant scope
@@ -60,7 +61,8 @@ static struct Obj_Var *CurParseFn;
 //                 | ident ("{" enumList? "}")?
 // enumList = ident ("=" num)? ("," ident ("=" num)?)*
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
-// typeSuffix = "(" funcParams | "[" num "]" | typeSuffix | ε
+// typeSuffix = "(" funcParams | "[" arrayDimensions | ε
+// arrayDimensions = num? "]" typeSuffix
 // funcParams = (param ("," param)*)? ")"
 // param = declspec declarator
 
@@ -107,9 +109,12 @@ static struct Obj_Var *CurParseFn;
 
 // funcall = ident "(" (assign ("," assign)*)? ")"
 
+static bool is_typename(struct Token *token);
 static struct Type *declspec(struct Token **rest, struct Token *token,
 			     struct VarAttr *attr);
 static struct Type *enum_specifier(struct Token **rest, struct Token *token);
+static struct Type *type_suffix(struct Token **rest, struct Token *token,
+				struct Type *type);
 static struct Type *declarator(struct Token **rest, struct Token *token,
 			       struct Type *ty);
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
@@ -490,18 +495,36 @@ static struct Type *func_params(struct Token **rest, struct Token *token,
 	return type;
 }
 
-// typeSuffix = ("(" funcParams? ")")?
+// Array Dimension
+// arrayDimensions = num? "]" typeSuffix
+static struct Type *array_dimensions(struct Token **rest, struct Token *token,
+				     struct Type *type)
+{
+	// ']' , "[]" for dimensionless array
+	if (equal(token, "]")) {
+		type = type_suffix(rest, token->next, type);
+		return array_of(type, -1);
+	}
+
+	// the case with array dimensions
+	int sz = get_number(token);
+	token = skip(token->next, "]");
+	type = type_suffix(rest, token, type);
+	return array_of(type, sz);
+}
+
+// typeSuffix = "(" funcParams | "[" arrayDimensions | ε
 static struct Type *type_suffix(struct Token **rest, struct Token *token,
 				struct Type *ty)
 {
+	// "(" funcParams
 	if (equal(token, "("))
 		return func_params(rest, token->next, ty);
-	if (equal(token, "[")) {
-		int sz = get_number(token->next);
-		token = skip(token->next->next, "]");
-		ty = type_suffix(rest, token, ty);
-		return array_of(ty, sz);
-	}
+
+	// "[" arrayDimensions
+	if (equal(token, "["))
+		return array_dimensions(rest, token->next, ty);
+
 	*rest = token;
 	return ty;
 }
@@ -658,6 +681,8 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 		// declarator
 		// declare the var-type that got, include var name
 		struct Type *type = declarator(&token, token, base_ty);
+		if (type->size < 0)
+			error_token(token, "variable has incomplete type");
 		if (type->kind == TY_VOID)
 			error_token(token, "variable declared void");
 		struct Obj_Var *var = new_lvar(get_ident(type->name), type);
