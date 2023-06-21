@@ -31,6 +31,10 @@ enum NodeKind {
 	ND_MUL,
 	ND_NEG,
 	ND_MOD, // %
+	ND_BITNOT, // ~
+	ND_BITAND, // &
+	ND_BITOR, // |
+	ND_BITXOR, // ^
 	// Relational Operators
 	ND_EQ, // ==
 	ND_NE, // !=
@@ -46,10 +50,8 @@ enum NodeKind {
 	ND_DEREF, // dereference
 	// Logical Operators
 	ND_NOT, // !
-	ND_BITNOT, // ~
-	ND_BITAND, // &
-	ND_BITOR, // |
-	ND_BITXOR, // ^
+	ND_LOGAND, // &&
+	ND_LOGOR, // ||
 
 	ND_RETURN, // return
 	ND_IF, // if

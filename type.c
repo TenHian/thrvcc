@@ -147,6 +147,8 @@ void add_type(struct AstNode *node)
 		node->type = node->func_type->return_type;
 		return;
 	case ND_NOT:
+	case ND_LOGAND:
+	case ND_LOGOR:
 		node->type = TyInt;
 		return;
 	case ND_BITNOT:

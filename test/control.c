@@ -120,6 +120,17 @@ int main()
 		       i;
 	       }));
 
+	// [84] Support for '&&' and '||' operator
+	printf("[84] Support for '&&' and '||' operator\n");
+	ASSERT(1, 0 || 1);
+	ASSERT(1, 0 || (2 - 2) || 5);
+	ASSERT(0, 0 || 0);
+	ASSERT(0, 0 || (2 - 2));
+
+	ASSERT(0, 0 && 1);
+	ASSERT(0, (2 - 2) && 5);
+	ASSERT(1, 1 && 5);
+
 	printf("OK\n");
 	return 0;
 }

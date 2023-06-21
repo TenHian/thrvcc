@@ -269,6 +269,40 @@ static void gen_expr(struct AstNode *node)
 		// if a0=0 set to 1, otherwise 0
 		println("  seqz a0, a0");
 		return;
+	case ND_LOGAND: {
+		int C = count();
+		println("\n# ====== logical and %d ======", C);
+		gen_expr(node->lhs);
+		// Determine if it is a short-circuit operation
+		println("  # Left short-circuit operation judgment, if 0, then jump");
+		println("  beqz a0, .L.false.%d", C);
+		gen_expr(node->rhs);
+		println("  # The right part of the judgment, 0 will be jumped");
+		println("  beqz a0, .L.false.%d", C);
+		println("  li a0, 1");
+		println("  j .L.end.%d", C);
+		println(".L.false.%d:", C);
+		println("  li a0, 0");
+		println(".L.end.%d:", C);
+		return;
+	}
+	case ND_LOGOR: {
+		int C = count();
+		println("\n# ====== logical or %d ======", C);
+		gen_expr(node->lhs);
+		// Determine if it is a short-circuit operation
+		println("  # Left short-circuit operation judgment, if 0, then jump");
+		println("  bnez a0, .L.true.%d", C);
+		gen_expr(node->rhs);
+		println("  # The right part of the judgment, 0 will be jumped");
+		println("  bnez a0, .L.true.%d", C);
+		println("  li a0, 0");
+		println("  j .L.end.%d", C);
+		println(".L.true.%d:", C);
+		println("  li a0, 1");
+		println(".L.end.%d:", C);
+		return;
+	}
 	case ND_BITNOT:
 		gen_expr(node->lhs);
 		println("  # NOT by bit");
