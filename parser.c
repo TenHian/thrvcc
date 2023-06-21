@@ -1336,23 +1336,37 @@ static struct Type *struct_union_decl(struct Token **rest, struct Token *token)
 		token = token->next;
 	}
 
+	// construct incomplete struct
 	if (tag && !equal(token, "{")) {
-		struct Type *ty = find_tag(tag);
-		if (!ty)
-			error_token(tag, "unknown struct type");
 		*rest = token;
+
+		struct Type *ty = find_tag(tag);
+		if (ty)
+			return ty;
+
+		ty = struct_type();
+		ty->size = -1;
+		push_tag_scope(tag, ty);
 		return ty;
 	}
 
+	// ("{" structMembers)?
+	token = skip(token, "{");
+
 	// construct a struct
-	struct Type *ty = calloc(1, sizeof(struct Type));
-	ty->kind = TY_STRUCT;
-	struct_members(rest, token->next, ty);
-	ty->align = 1;
+	struct Type *ty = struct_type();
+	struct_members(rest, token, ty);
 
 	// if have a tag, reg the structure type
-	if (tag)
+	if (tag) {
+		for (struct TagScope *tsp = Scp->tags; tsp; tsp = tsp->next) {
+			if (equal(tag, tsp->name)) {
+				*tsp->type = *ty;
+				return tsp->type;
+			}
+		}
 		push_tag_scope(tag, ty);
+	}
 	return ty;
 }
 
@@ -1361,6 +1375,10 @@ static struct Type *struct_decl(struct Token **rest, struct Token *token)
 {
 	struct Type *ty = struct_union_decl(rest, token);
 	ty->kind = TY_STRUCT;
+
+	// incomplete struct
+	if (ty->size < 0)
+		return ty;
 
 	// caculate the offset of struct members
 	int offset = 0;

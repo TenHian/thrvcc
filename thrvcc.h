@@ -208,6 +208,8 @@ void add_type(struct AstNode *node);
 struct Type *array_of(struct Type *base, int len);
 // enum type
 struct Type *enum_type(void);
+// struct type
+struct Type *struct_type(void);
 // function type
 struct Type *func_type(struct Type *return_ty);
 int align_to(int N, int Align);

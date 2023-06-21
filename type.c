@@ -62,6 +62,12 @@ struct Type *enum_type(void)
 	return new_type(TY_ENUM, 4, 4);
 }
 
+// construct struct type
+struct Type *struct_type(void)
+{
+	return new_type(TY_STRUCT, 0, 1);
+}
+
 // Get the type of accommodating left and right parts
 static struct Type *get_common_type(struct Type *ty1, struct Type *ty2)
 {
