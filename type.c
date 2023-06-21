@@ -165,6 +165,15 @@ void add_type(struct AstNode *node)
 	case ND_VAR:
 		node->type = node->var->type;
 		return;
+	case ND_COND:
+		if (node->then_->type->kind == TY_VOID ||
+		    node->else_->type->kind == TY_VOID)
+			node->type = TyVoid;
+		else {
+			arith_conv(&node->then_, &node->else_);
+			node->type = node->then_->type;
+		}
+		return;
 	// make astnode type as rhs type
 	case ND_COMMA:
 		node->type = node->rhs->type;

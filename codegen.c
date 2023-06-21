@@ -264,6 +264,20 @@ static void gen_expr(struct AstNode *node)
 		gen_expr(node->lhs);
 		cast(node->lhs->type, node->type);
 		return;
+	case ND_COND: {
+		int C = count();
+		println("\n# ====== conditional operator %d ======", C);
+		gen_expr(node->condition);
+		println("  # condition determination, if 0, jump");
+		println("  beqz a0, .L.else.%d", C);
+		gen_expr(node->then_);
+		println("  # jump to operator end");
+		println("  j .L.end.%d", C);
+		println(".L.else.%d:", C);
+		gen_expr(node->else_);
+		println(".L.end.%d:", C);
+		return;
+	}
 	case ND_NOT:
 		gen_expr(node->lhs);
 		println("  # NOT operation");

@@ -55,6 +55,9 @@ enum NodeKind {
 	ND_LOGAND, // &&
 	ND_LOGOR, // ||
 
+	// ternary operator
+	ND_COND, // ?:
+
 	// keyword
 	ND_RETURN, // return
 	ND_IF, // if

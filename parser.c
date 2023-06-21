@@ -99,7 +99,8 @@ static struct AstNode *CurSwitch;
 //        | exprStmt
 // expr stmt = expr? ;
 // expr = assign ("," expr)?
-// assign = logOr (assignOp assign)?
+// assign = conditional (assignOp assign)?
+// conditional = logOr ("?" expr ":" conditional)?
 // logOr = logAnd ("||" logAnd)*
 // logAnd = bitOr ("&&" bitOr)*
 // bitOr = bitXor ("|" bitXor)*
@@ -147,6 +148,7 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token);
 static struct AstNode *assign(struct Token **rest, struct Token *token);
+static struct AstNode *conditional(struct Token **rest, struct Token *token);
 static struct AstNode *log_or(struct Token **rest, struct Token *token);
 static struct AstNode *log_and(struct Token **rest, struct Token *token);
 static struct AstNode *bit_or(struct Token **rest, struct Token *token);
@@ -1095,13 +1097,13 @@ static struct AstNode *to_assign(struct AstNode *binary)
 	return new_binary_tree_node(ND_COMMA, expr1, expr2, token);
 }
 
-// assign = logOr (assignOp assign)?
+// assign = conditional (assignOp assign)?
 // assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^="
 //          | "<<=" | ">>="
 static struct AstNode *assign(struct Token **rest, struct Token *token)
 {
-	// equality
-	struct AstNode *node = log_or(&token, token);
+	// conditional
+	struct AstNode *node = conditional(&token, token);
 
 	// there may be recursive assignments, such as a=b=1
 	// ("=" assign)?
@@ -1154,6 +1156,30 @@ static struct AstNode *assign(struct Token **rest, struct Token *token)
 			ND_SHR, node, assign(rest, token->next), token));
 
 	*rest = token;
+	return node;
+}
+
+// parse conditional operator
+// conditional = logOr ("?" expr ":" conditional)?
+static struct AstNode *conditional(struct Token **rest, struct Token *token)
+{
+	// lohOr
+	struct AstNode *cond = log_or(&token, token);
+
+	// "?"
+	if (!equal(token, "?")) {
+		*rest = token;
+		return cond;
+	}
+
+	// expr ":" conditional
+	struct AstNode *node = new_astnode(ND_COND, token);
+	node->condition = cond;
+	// expr ":"
+	node->then_ = expr(&token, token->next);
+	token = skip(token, ":");
+	// conditional, could not be parsed to assign stmt
+	node->else_ = conditional(rest, token);
 	return node;
 }
 
