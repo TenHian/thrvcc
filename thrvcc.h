@@ -53,10 +53,13 @@ enum NodeKind {
 	ND_LOGAND, // &&
 	ND_LOGOR, // ||
 
+	// keyword
 	ND_RETURN, // return
 	ND_IF, // if
 	ND_FOR, // for or while
 	ND_BLOCK, // code block
+	ND_GOTO, // goto
+	ND_LABEL, // goto label
 	ND_FUNCALL, // Function call
 	ND_VAR, // variable
 	ND_NUM,
@@ -173,6 +176,11 @@ struct AstNode {
 	char *func_name; // func name
 	struct Type *func_type; // func type
 	struct AstNode *args; // func args
+
+	// goto and label
+	char *label;
+	char *unique_label;
+	struct AstNode *goto_next;
 
 	struct Obj_Var *var; // string that store var type
 	int64_t val;

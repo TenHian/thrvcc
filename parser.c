@@ -1,6 +1,7 @@
 #include "thrvcc.h"
 #include <math.h>
 #include <stdbool.h>
+#include <string.h>
 #include <time.h>
 
 // local/global variable, typedef or enum constant scope
@@ -51,6 +52,10 @@ static struct Scope *Scp = &(struct Scope){};
 // point to current parsing function
 static struct Obj_Var *CurParseFn;
 
+// goto and label list in cur func
+static struct AstNode *Gotos;
+static struct AstNode *Labels;
+
 // program = (typedef | functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
@@ -70,11 +75,13 @@ static struct Obj_Var *CurParseFn;
 // declaration =
 // 	declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
 // stmt = "return" expr ";"
-//      | "if" "(" expr ")" stmt ("else" stmt)?
-//      | "for" "(" exprStmt expr? ";" expr? ")" stmt
-//      | "while" "(" expr ")" stmt
-//      | "{" compoundStmt
-//      | exprStmt
+//        | "if" "(" expr ")" stmt ("else" stmt)?
+//        | "for" "(" exprStmt expr? ";" expr? ")" stmt
+//        | "while" "(" expr ")" stmt
+//        | "goto" ident ";"
+//        | ident ":" stmt
+//        | "{" compoundStmt
+//        | exprStmt
 // expr stmt = expr? ;
 // expr = assign ("," expr)?
 // assign = logOr (assignOp assign)?
@@ -736,11 +743,13 @@ static bool is_typename(struct Token *token)
 
 // parse stmt
 // stmt = "return" expr ";"
-//      | "if" "(" expr ")" stmt ("else" stmt)?
-//      | "for" "(" exprStmt expr? ";" expr? ")" stmt
-//      | "while" "(" expr ")" stmt
-//      | "{" compoundStmt
-//      | exprStmt
+//        | "if" "(" expr ")" stmt ("else" stmt)?
+//        | "for" "(" exprStmt expr? ";" expr? ")" stmt
+//        | "while" "(" expr ")" stmt
+//        | "goto" ident ";"
+//        | ident ":" stmt
+//        | "{" compoundStmt
+//        | exprStmt
 static struct AstNode *stmt(struct Token **rest, struct Token *token)
 {
 	// "return" expr ";"
@@ -818,6 +827,29 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		token = skip(token, ")");
 		// stmt
 		node->then_ = stmt(rest, token);
+		return node;
+	}
+
+	// "goto" ident ";"
+	if (equal(token, "goto")) {
+		struct AstNode *node = new_astnode(ND_GOTO, token);
+		node->label = get_ident(token->next);
+		// store 'node' into Gotos, used to parse UniqueLabel at the end
+		node->goto_next = Gotos;
+		Gotos = node;
+		*rest = skip(token->next->next, ";");
+		return node;
+	}
+
+	// ident ":" stmt
+	if (token->kind == TK_IDENT && equal(token->next, ":")) {
+		struct AstNode *node = new_astnode(ND_LABEL, token);
+		node->label = strndup(token->location, token->len);
+		node->unique_label = new_unique_name();
+		node->lhs = stmt(rest, token->next->next);
+		// store 'node' into Gotos, used to parse UniqueLabel at the end
+		node->goto_next = Labels;
+		Labels = node;
 		return node;
 	}
 
@@ -1672,6 +1704,28 @@ static void create_params_lvars(struct Type *param)
 	}
 }
 
+// match goto and label
+// Because the label may appear after goto, \
+// you have to parse the function before parsing the goto and label
+static void resolve_goto_labels(void)
+{
+	// iterate through all goto to match label
+	for (struct AstNode *X = Gotos; X; X = X->goto_next) {
+		for (struct AstNode *Y = Labels; Y; Y = Y->goto_next) {
+			if (!strcmp(X->label, Y->label)) {
+				X->unique_label = Y->unique_label;
+				break;
+			}
+		}
+
+		if (X->unique_label == NULL)
+			error_token(X->tok->next, "use of undeclared label");
+	}
+
+	Gotos = NULL;
+	Labels = NULL;
+}
+
 // functionDefinition = declspec declarator "{" compoundStmt*
 static struct Token *function(struct Token *token, struct Type *base_type,
 			      struct VarAttr *attr)
@@ -1702,6 +1756,8 @@ static struct Token *function(struct Token *token, struct Type *base_type,
 	fn->locals = Locals;
 	// leave current scope
 	leave_scope();
+	// process goto and label
+	resolve_goto_labels();
 	return token;
 }
 
