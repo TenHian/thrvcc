@@ -56,6 +56,9 @@ static struct Obj_Var *CurParseFn;
 static struct AstNode *Gotos;
 static struct AstNode *Labels;
 
+// current target that 'goto'
+static char *BrkLabel;
+
 // program = (typedef | functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
@@ -79,6 +82,7 @@ static struct AstNode *Labels;
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
 //        | "goto" ident ";"
+//        | "break" ";"
 //        | ident ":" stmt
 //        | "{" compoundStmt
 //        | exprStmt
@@ -747,6 +751,7 @@ static bool is_typename(struct Token *token)
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
 //        | "goto" ident ";"
+//        | "break" ";"
 //        | ident ":" stmt
 //        | "{" compoundStmt
 //        | exprStmt
@@ -787,6 +792,11 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		// enter 'for' loop scope
 		enter_scope();
 
+		// store current brk_label
+		char *brk = BrkLabel;
+		// set name for brk_label
+		BrkLabel = node->brk_label = new_unique_name();
+
 		// exprStmt
 		if (is_typename(token)) {
 			// Initialize loop control variables
@@ -813,6 +823,8 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 
 		// leave 'for' loop scope
 		leave_scope();
+		// restore the previous brk_label
+		BrkLabel = brk;
 
 		return node;
 	}
@@ -825,8 +837,18 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		node->condition = expr(&token, token);
 		// ")"
 		token = skip(token, ")");
+
+		// store current brk_label
+		char *brk = BrkLabel;
+		// set name for brk_label
+		BrkLabel = node->brk_label = new_unique_name();
+
 		// stmt
 		node->then_ = stmt(rest, token);
+
+		// restore the previous brk_label
+		BrkLabel = brk;
+
 		return node;
 	}
 
@@ -838,6 +860,17 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		node->goto_next = Gotos;
 		Gotos = node;
 		*rest = skip(token->next->next, ";");
+		return node;
+	}
+
+	// "break" ";"
+	if (equal(token, "break")) {
+		if (!BrkLabel)
+			error_token(token, "stray break");
+		// jump to brk_label
+		struct AstNode *node = new_astnode(ND_GOTO, token);
+		node->unique_label = BrkLabel;
+		*rest = skip(token->next, ";");
 		return node;
 	}
 

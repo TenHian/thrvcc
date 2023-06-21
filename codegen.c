@@ -464,9 +464,9 @@ static void gen_stmt(struct AstNode *node)
 			// gen loop's conditional stmt
 			gen_expr(node->condition);
 			// determine condition, if 0 jump to loop's end
-			println("  # if a0==0, jump to loop%d's .L.end.%d segment",
-				C, C);
-			println("  beqz a0, .L.end.%d", C);
+			println("  # if a0==0, jump to loop%d's %s segment", C,
+				node->brk_label);
+			println("  beqz a0, %s", node->brk_label);
 		}
 		// gen loop's body
 		println("\n# then statement%d", C);
@@ -480,8 +480,8 @@ static void gen_stmt(struct AstNode *node)
 		println("  # jump to loop%d's .L.begin.%d segment", C, C);
 		println("  j .L.begin.%d", C);
 		// output the loop's tail label
-		println("\n# loop%d's .L.end.%d segment label", C, C);
-		println(".L.end.%d:", C);
+		println("\n# loop%d's %s segment label", C, node->brk_label);
+		println("%s:", node->brk_label);
 		return;
 	}
 	case ND_BLOCK:

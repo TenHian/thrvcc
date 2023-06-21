@@ -166,6 +166,9 @@ struct AstNode {
 	struct AstNode *init; // init stmt
 	struct AstNode *increase; // increase stmt
 
+	// 'break' label
+	char *brk_label;
+
 	// code block or statement express(GNU)
 	struct AstNode *body;
 
