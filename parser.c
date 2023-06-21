@@ -480,10 +480,18 @@ static struct Type *func_params(struct Token **rest, struct Token *token,
 		// param = declspec declarator
 		if (cur != &head)
 			token = skip(token, ",");
-		struct Type *base_ty = declspec(&token, token, NULL);
-		struct Type *declar_ty = declarator(&token, token, base_ty);
+		struct Type *type2 = declspec(&token, token, NULL);
+		type2 = declarator(&token, token, type2);
+
+		// An array of type T is converted to type T*
+		if (type2->kind == TY_ARRAY) {
+			struct Token *name = type2->name;
+			type2 = pointer_to(type2->base);
+			type2->name = name;
+		}
+
 		// copy to parameters list
-		cur->next = copy_type(declar_ty);
+		cur->next = copy_type(type2);
 		cur = cur->next;
 	}
 
