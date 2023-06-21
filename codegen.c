@@ -403,6 +403,14 @@ static void gen_expr(struct AstNode *node)
 		println("  slt a0, a1, a0");
 		println("  xori a0, a0, 1");
 		return;
+	case ND_SHL:
+		println("  # a0 logical-left-shift a1 bits");
+		println("  sll%s a0, a0, a1", suffix);
+		return;
+	case ND_SHR:
+		println("  # a0 logical-right-shift a1 bits");
+		println("  sra%s a0, a0, a1", suffix);
+		return;
 	default:
 		break;
 	}

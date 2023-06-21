@@ -35,6 +35,8 @@ enum NodeKind {
 	ND_BITAND, // &
 	ND_BITOR, // |
 	ND_BITXOR, // ^
+	ND_SHL, // <<
+	ND_SHR, // >>
 	// Relational Operators
 	ND_EQ, // ==
 	ND_NE, // !=

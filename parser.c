@@ -106,9 +106,11 @@ static struct AstNode *CurSwitch;
 // bitXor = bitAnd ("^" bitAnd)*
 // bitAnd = equality ("&" equality)*
 // assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^="
-// equality = relational ("==" | "!=")
-// relational = add ("<" | "<=" | ">" | ">=")
-// add = mul ("+" | "-")
+//          | "<<=" | ">>="
+// equality = relational ("==" relational | "!=" relational)*
+// relational = shift ("<" shift | "<=" shift | ">" shift | ">=" shift)*
+// shift = add ("<<" add | ">>" add)*
+// add = mul ("+" mul | "-" mul)*
 // mul = cast ("*" cast | "/" cast | "%" cast)*
 // cast = "(" typeName ")" cast | unary
 // unary = ("+" | "-" | "*" | "&" | "!" | "~") cast
@@ -152,6 +154,7 @@ static struct AstNode *bit_xor(struct Token **rest, struct Token *token);
 static struct AstNode *bit_and(struct Token **rest, struct Token *token);
 static struct AstNode *equality(struct Token **rest, struct Token *token);
 static struct AstNode *relational(struct Token **rest, struct Token *token);
+static struct AstNode *shift(struct Token **rest, struct Token *token);
 static struct AstNode *expr(struct Token **rest, struct Token *token);
 static struct AstNode *add(struct Token **rest, struct Token *token);
 static struct AstNode *new_add(struct AstNode *lhs, struct AstNode *rhs,
@@ -1094,6 +1097,7 @@ static struct AstNode *to_assign(struct AstNode *binary)
 
 // assign = logOr (assignOp assign)?
 // assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^="
+//          | "<<=" | ">>="
 static struct AstNode *assign(struct Token **rest, struct Token *token)
 {
 	// equality
@@ -1138,6 +1142,16 @@ static struct AstNode *assign(struct Token **rest, struct Token *token)
 	if (equal(token, "^="))
 		return to_assign(new_binary_tree_node(
 			ND_BITXOR, node, assign(rest, token->next), token));
+
+	// ("<<=" assign)?
+	if (equal(token, "<<="))
+		return to_assign(new_binary_tree_node(
+			ND_SHL, node, assign(rest, token->next), token));
+
+	// (">>=" assign)?
+	if (equal(token, ">>="))
+		return to_assign(new_binary_tree_node(
+			ND_SHR, node, assign(rest, token->next), token));
 
 	*rest = token;
 	return node;
@@ -1237,37 +1251,66 @@ static struct AstNode *equality(struct Token **rest, struct Token *token)
 	}
 }
 
-// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+// relational = shift ("<" shift | "<=" shift | ">" shift | ">=" shift)*
 static struct AstNode *relational(struct Token **rest, struct Token *token)
+{
+	// shift
+	struct AstNode *node = shift(&token, token);
+
+	// ("<" shift | "<=" shift | ">" shift | ">=" shift)*
+	while (true) {
+		struct Token *start = token;
+		// "<" shift
+		if (equal(token, "<")) {
+			node = new_binary_tree_node(
+				ND_LT, node, shift(&token, token->next), start);
+			continue;
+		}
+		// "<=" shift
+		if (equal(token, "<=")) {
+			node = new_binary_tree_node(
+				ND_LE, node, shift(&token, token->next), start);
+			continue;
+		}
+		// ">" shift, X>Y equal Y<X
+		if (equal(token, ">")) {
+			node = new_binary_tree_node(
+				ND_LT, shift(&token, token->next), node, start);
+			continue;
+		}
+		// ">=" shift
+		if (equal(token, ">=")) {
+			node = new_binary_tree_node(
+				ND_LE, shift(&token, token->next), node, start);
+			continue;
+		}
+
+		*rest = token;
+		return node;
+	}
+}
+
+// parse shift
+// shift = add ("<<" add | ">>" add)*
+static struct AstNode *shift(struct Token **rest, struct Token *token)
 {
 	// add
 	struct AstNode *node = add(&token, token);
 
-	// ("<" add | "<=" add | ">" add | ">=" add)*
 	while (true) {
 		struct Token *start = token;
-		// "<" add
-		if (equal(token, "<")) {
+
+		// "<<" add
+		if (equal(token, "<<")) {
 			node = new_binary_tree_node(
-				ND_LT, node, add(&token, token->next), start);
+				ND_SHL, node, add(&token, token->next), start);
 			continue;
 		}
-		// "<=" add
-		if (equal(token, "<=")) {
+
+		// ">>" add
+		if (equal(token, ">>")) {
 			node = new_binary_tree_node(
-				ND_LE, node, add(&token, token->next), start);
-			continue;
-		}
-		// ">" add, X>Y equal Y<X
-		if (equal(token, ">")) {
-			node = new_binary_tree_node(
-				ND_LT, add(&token, token->next), node, start);
-			continue;
-		}
-		// ">=" add
-		if (equal(token, ">=")) {
-			node = new_binary_tree_node(
-				ND_LE, add(&token, token->next), node, start);
+				ND_SHR, node, add(&token, token->next), start);
 			continue;
 		}
 

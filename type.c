@@ -158,6 +158,8 @@ void add_type(struct AstNode *node)
 		node->type = TyInt;
 		return;
 	case ND_BITNOT:
+	case ND_SHL:
+	case ND_SHR:
 		node->type = node->lhs->type;
 		return;
 	case ND_VAR:
