@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -36,6 +37,25 @@ struct Scope {
 struct VarAttr {
 	bool is_typedef; // Whether it is a type alias
 	bool is_static; // Whether it is in file scope
+};
+
+// variable initializer. this is a tree.
+// Initializers can be nested
+// int x[2][2] = {{1, 2}, {3, 4}}
+struct Initializer {
+	struct Initializer *next;
+	struct Type *type;
+	struct Token *token;
+
+	struct AstNode *expr;
+
+	struct Initializer **children;
+};
+
+struct InitDesig {
+	struct InitDesig *next;
+	int idx;
+	struct Obj_Var *var;
 };
 
 // all var add in this list while parse
@@ -83,8 +103,9 @@ static struct AstNode *CurSwitch;
 // param = declspec declarator
 
 // compoundStmt = (typedef | declaration | stmt)* "}"
-// declaration =
-// 	declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
+// declaration = declspec (declarator ("=" initializer)?
+//                         ("," declarator ("=" initializer)?)*)? ";"
+// initializer = "{" initializer ("," initializer)* "}" | assign
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "switch" "(" expr ")" stmt
@@ -146,6 +167,8 @@ static struct Type *declarator(struct Token **rest, struct Token *token,
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
 static struct AstNode *declaration(struct Token **rest, struct Token *token,
 				   struct Type *base_ty);
+static struct AstNode *
+lvar_initializer(struct Token **rest, struct Token *token, struct Obj_Var *var);
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token);
 static struct AstNode *expr(struct Token **rest, struct Token *token);
@@ -286,6 +309,25 @@ static struct VarScope *push_scope(char *name)
 	vsp->next = Scp->vars;
 	Scp->vars = vsp;
 	return vsp;
+}
+
+// new initializer
+static struct Initializer *new_initializer(struct Type *type)
+{
+	struct Initializer *init = calloc(1, sizeof(struct Initializer));
+	// store original type
+	init->type = type;
+
+	// deal with array type
+	if (type->kind == TY_ARRAY) {
+		// allocate space for each of the outermost elements of the array
+		init->children =
+			calloc(type->array_len, sizeof(struct Initializer *));
+		// iterate through the outermost elements of the array, and parse it
+		for (int i = 0; i < type->array_len; ++i)
+			init->children[i] = new_initializer(type->base);
+	}
+	return init;
 }
 
 // construct a new variable
@@ -690,8 +732,8 @@ static struct Type *enum_specifier(struct Token **rest, struct Token *token)
 	return type;
 }
 
-// declaration =
-//    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
+// declaration = declspec (declarator ("=" initializer)?
+//                         ("," declarator ("=" initializer)?)*)? ";"
 static struct AstNode *declaration(struct Token **rest, struct Token *token,
 				   struct Type *base_ty)
 {
@@ -717,24 +759,117 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 
 		// if not exist "=", its var declaration, no need to gen AstNode,
 		// already stored in Locals.
-		if (!equal(token, "="))
-			continue;
-
-		// parse tokens after "="
-		struct AstNode *lhs = new_var_astnode(var, type->name);
-		// parsing recursive assignment statements
-		struct AstNode *rhs = assign(&token, token->next);
-		struct AstNode *node =
-			new_binary_tree_node(ND_ASSIGN, lhs, rhs, token);
-		// stored it in expr stmt
-		cur->next = new_unary_tree_node(ND_EXPR_STMT, node, token);
-		cur = cur->next;
+		if (equal(token, "=")) {
+			// parse variable initializer
+			struct AstNode *expr =
+				lvar_initializer(&token, token->next, var);
+			// stored in expr stmt
+			cur->next =
+				new_unary_tree_node(ND_EXPR_STMT, expr, token);
+			cur = cur->next;
+		}
 	}
+
 	// store all expr stmt in code block
 	struct AstNode *node = new_astnode(ND_BLOCK, token);
 	node->body = head.next;
 	*rest = token->next;
 	return node;
+}
+
+// initializer = "{" initializer ("," initializer)* "}" | assign
+static void initializer2(struct Token **rest, struct Token *token,
+			 struct Initializer *init)
+{
+	// "{" initializer ("," initializer)* "}"
+	if (init->type->kind == TY_ARRAY) {
+		token = skip(token, "{");
+
+		// iterate array
+		for (int i = 0; i < init->type->array_len; i++) {
+			if (i > 0)
+				token = skip(token, ",");
+			initializer2(&token, token, init->children[i]);
+		}
+		*rest = skip(token, "}");
+		return;
+	}
+
+	// assign
+	// store expr for node
+	init->expr = assign(rest, token);
+}
+
+// initializer
+static struct Initializer *initializer(struct Token **rest, struct Token *token,
+				       struct Type *type)
+{
+	// Create a new initializer with resolved types
+	struct Initializer *init = new_initializer(type);
+	// Parsing needs to be assigned to Init
+	initializer2(rest, token, init);
+	return init;
+}
+
+// assign initialize expr
+static struct AstNode *init_desig_expr(struct InitDesig *desig,
+				       struct Token *token)
+{
+	// return variable in desig
+	if (desig->var)
+		return new_var_astnode(desig->var, token);
+
+	// Name of the variable to be assigned
+	// Recursive to the next outer Desig,
+	// there is at this point the outermost Desig->Var
+	// The offsets are then calculated layer by layer
+	struct AstNode *lhs = init_desig_expr(desig->next, token);
+	// offset
+	struct AstNode *rhs = new_num_astnode(desig->idx, token);
+	// Returns the address of the variable after the offset
+	return new_unary_tree_node(ND_DEREF, new_add(lhs, rhs, token), token);
+}
+
+// Creating initialization of local variables
+static struct AstNode *create_lvar_init(struct Initializer *init,
+					struct Type *type,
+					struct InitDesig *desig,
+					struct Token *token)
+{
+	if (type->kind == TY_ARRAY) {
+		// The case of null expressions
+		struct AstNode *node = new_astnode(ND_NULL_EXPR, token);
+		for (int i = 0; i < type->array_len; i++) {
+			// Here next points to information about \
+			// the previous level of Desig, and the offset in it.
+			struct InitDesig desig2 = { desig, i };
+			// Local variables for initialization
+			struct AstNode *rhs = create_lvar_init(
+				init->children[i], type->base, &desig2, token);
+			// Construct a binary tree of the form: NULL_EXPR, EXPR1, EXPR2...
+			node = new_binary_tree_node(ND_COMMA, node, rhs, token);
+		}
+		return node;
+	}
+
+	// Left values that can be assigned directly to variables, etc.
+	struct AstNode *lhs = init_desig_expr(desig, token);
+	// Initialized right value
+	struct AstNode *rhs = init->expr;
+	return new_binary_tree_node(ND_ASSIGN, lhs, rhs, token);
+}
+
+// Local variable initializers
+static struct AstNode *
+lvar_initializer(struct Token **rest, struct Token *token, struct Obj_Var *var)
+{
+	// Get the initializer to correspond the values to the \
+	// data structure one by one
+	struct Initializer *init = initializer(rest, token, var->type);
+	// assign initialize
+	struct InitDesig desig = { NULL, 0, var };
+	// creat initialize for local variable
+	return create_lvar_init(init, var->type, &desig, token);
 }
 
 // determine if it is a type name

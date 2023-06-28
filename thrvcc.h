@@ -72,6 +72,7 @@ enum NodeKind {
 	ND_NUM,
 	ND_EXPR_STMT, // express statement
 	ND_STMT_EXPR, // statement express, GNU feature
+	ND_NULL_EXPR, // NULL expr
 };
 
 enum TypeKind {
