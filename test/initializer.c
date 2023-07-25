@@ -58,6 +58,17 @@ int main()
 		       x[1][2];
 	       }));
 
+	// [98] skip excess initialization elements
+	printf("[98] skip excess initialization elements\n");
+	ASSERT(3, ({
+		       int x[2][3] = { { 1, 2, 3, 4 }, { 5, 6, 7 } };
+		       x[0][2];
+	       }));
+	ASSERT(5, ({
+		       int x[2][3] = { { 1, 2, 3, 4 }, { 5, 6, 7 } };
+		       x[1][0];
+	       }));
+
 	printf("OK\n");
 	return 0;
 }

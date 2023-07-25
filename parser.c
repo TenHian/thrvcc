@@ -777,6 +777,19 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 	return node;
 }
 
+// skip excess elements
+static struct Token *skip_excess_element(struct Token *token)
+{
+	if (equal(token, "{")) {
+		token = skip_excess_element(token->next);
+		return skip(token, "}");
+	}
+
+	// parse and discard excess elements
+	assign(&token, token);
+	return token;
+}
+
 // initializer = "{" initializer ("," initializer)* "}" | assign
 static void initializer2(struct Token **rest, struct Token *token,
 			 struct Initializer *init)
@@ -786,11 +799,16 @@ static void initializer2(struct Token **rest, struct Token *token,
 		token = skip(token, "{");
 
 		// iterate array
-		for (int i = 0; i < init->type->array_len && !equal(token, "}");
-		     i++) {
+		for (int i = 0; !consume(rest, token, "}"); i++) {
 			if (i > 0)
 				token = skip(token, ",");
-			initializer2(&token, token, init->children[i]);
+
+			// normal parsing elements
+			if (i < init->type->array_len)
+				initializer2(&token, token, init->children[i]);
+			// skip excess elements
+			else
+				token = skip_excess_element(token);
 		}
 		*rest = skip(token, "}");
 		return;
