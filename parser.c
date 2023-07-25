@@ -46,6 +46,7 @@ struct Initializer {
 	struct Initializer *next;
 	struct Type *type;
 	struct Token *token;
+	bool is_flexible;
 
 	struct AstNode *expr;
 
@@ -172,7 +173,8 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 static void initializer2(struct Token **rest, struct Token *token,
 			 struct Initializer *init);
 static struct Initializer *initializer(struct Token **rest, struct Token *token,
-				       struct Type *type);
+				       struct Type *type,
+				       struct Type **new_type);
 static struct AstNode *
 lvar_initializer(struct Token **rest, struct Token *token, struct Obj_Var *var);
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
@@ -318,7 +320,7 @@ static struct VarScope *push_scope(char *name)
 }
 
 // new initializer
-static struct Initializer *new_initializer(struct Type *type)
+static struct Initializer *new_initializer(struct Type *type, bool is_flexible)
 {
 	struct Initializer *init = calloc(1, sizeof(struct Initializer));
 	// store original type
@@ -326,12 +328,24 @@ static struct Initializer *new_initializer(struct Type *type)
 
 	// deal with array type
 	if (type->kind == TY_ARRAY) {
+		// Determine
+		// if the number of array elements needs to be adjusted
+		// &&
+		// the array is incomplete.
+		if (is_flexible && type->size < 0) {
+			// Set the initializer to be adjustable,
+			// and then construct the initializer
+			// after performing the calculation of the number of array elements.
+			init->is_flexible = true;
+			return init;
+		}
+
 		// allocate space for each of the outermost elements of the array
 		init->children =
 			calloc(type->array_len, sizeof(struct Initializer *));
 		// iterate through the outermost elements of the array, and parse it
 		for (int i = 0; i < type->array_len; ++i)
-			init->children[i] = new_initializer(type->base);
+			init->children[i] = new_initializer(type->base, false);
 	}
 	return init;
 }
@@ -757,8 +771,6 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 		// declarator
 		// declare the var-type that got, include var name
 		struct Type *type = declarator(&token, token, base_ty);
-		if (type->size < 0)
-			error_token(token, "variable has incomplete type");
 		if (type->kind == TY_VOID)
 			error_token(token, "variable declared void");
 		struct Obj_Var *var = new_lvar(get_ident(type->name), type);
@@ -774,6 +786,11 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 				new_unary_tree_node(ND_EXPR_STMT, expr, token);
 			cur = cur->next;
 		}
+
+		if (var->type->size < 0)
+			error_token(type->name, "variable has incomplete type");
+		if (var->type->kind == TY_VOID)
+			error_token(type->name, "variable declared void");
 	}
 
 	// store all expr stmt in code block
@@ -800,6 +817,13 @@ static struct Token *skip_excess_element(struct Token *token)
 static void string_initializer(struct Token **rest, struct Token *token,
 			       struct Initializer *init)
 {
+	// If it is adjustable, construct an initializer that contains an array.
+	// String literals have been added '\0' in the lexing section.
+	if (init->is_flexible)
+		*init = *new_initializer(array_of(init->type->base,
+						  token->type->array_len),
+					 false);
+
 	// take the shortest lengths of arrays and strings
 	int len = MIN(init->type->array_len, token->type->array_len);
 	// iterate and assign values
@@ -808,11 +832,35 @@ static void string_initializer(struct Token **rest, struct Token *token,
 	*rest = token->next;
 }
 
+// Count the number of initialize elements of an array.
+static int count_array_init_elements(struct Token *token, struct Type *type)
+{
+	struct Initializer *dummy = new_initializer(type->base, false);
+	// count
+	int i = 0;
+
+	for (; !equal(token, "}"); i++) {
+		if (i > 0)
+			token = skip(token, ",");
+		initializer2(&token, token, dummy);
+	}
+	return i;
+}
+
 // arrayInitializer = "{" initializer ("," initializer)* "}"
 static void array_initializer(struct Token **rest, struct Token *token,
 			      struct Initializer *init)
 {
 	token = skip(token, "{");
+
+	// If the array is adjustable,
+	// then count the number of elements in the array
+	// and then do initializer construction.
+	if (init->is_flexible) {
+		int len = count_array_init_elements(token, init->type);
+		*init = *new_initializer(array_of(init->type->base, len),
+					 false);
+	}
 
 	// iterate array
 	for (int i = 0; !consume(rest, token, "}"); i++) {
@@ -851,12 +899,15 @@ static void initializer2(struct Token **rest, struct Token *token,
 
 // initializer
 static struct Initializer *initializer(struct Token **rest, struct Token *token,
-				       struct Type *type)
+				       struct Type *type,
+				       struct Type **new_type)
 {
 	// Create a new initializer with resolved types
-	struct Initializer *init = new_initializer(type);
+	struct Initializer *init = new_initializer(type, true);
 	// Parsing needs to be assigned to Init
 	initializer2(rest, token, init);
+	// Pass the new type back to the variable.
+	*new_type = init->type;
 	return init;
 }
 
@@ -918,7 +969,8 @@ lvar_initializer(struct Token **rest, struct Token *token, struct Obj_Var *var)
 {
 	// Get the initializer to correspond the values to the \
 	// data structure one by one
-	struct Initializer *init = initializer(rest, token, var->type);
+	struct Initializer *init =
+		initializer(rest, token, var->type, &var->type);
 	// assign initialize
 	struct InitDesig desig = { NULL, 0, var };
 
