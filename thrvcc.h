@@ -47,6 +47,7 @@ enum NodeKind {
 	ND_COMMA, // , comma
 	ND_MEMBER, // . struct member access
 	ND_CAST, // type cast
+	ND_MEMZERO, // zeroize variables on the stack
 	// Pointer Operators
 	ND_ADDR, // get address
 	ND_DEREF, // dereference

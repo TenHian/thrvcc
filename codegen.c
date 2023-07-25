@@ -266,6 +266,15 @@ static void gen_expr(struct AstNode *node)
 		gen_expr(node->lhs);
 		cast(node->lhs->type, node->type);
 		return;
+	case ND_MEMZERO: {
+		println("  # zeroized %d bits for %s's mem %d(fp)",
+			node->var->type->size, node->var->name,
+			node->var->offset);
+		// zeroize every byte occupied by a variable on the stack
+		for (int i = 0; i < node->var->type->size; i++)
+			println("  sb zero, %d(fp)", node->var->offset + i);
+		return;
+	}
 	case ND_COND: {
 		int C = count();
 		println("\n# ====== conditional operator %d ======", C);

@@ -786,7 +786,8 @@ static void initializer2(struct Token **rest, struct Token *token,
 		token = skip(token, "{");
 
 		// iterate array
-		for (int i = 0; i < init->type->array_len; i++) {
+		for (int i = 0; i < init->type->array_len && !equal(token, "}");
+		     i++) {
 			if (i > 0)
 				token = skip(token, ",");
 			initializer2(&token, token, init->children[i]);
@@ -852,11 +853,15 @@ static struct AstNode *create_lvar_init(struct Initializer *init,
 		return node;
 	}
 
+	// If the expr to be used as the right value is null, \
+	// it is set to the null expr
+	if (!init->expr)
+		return new_astnode(ND_NULL_EXPR, token);
+
 	// Left values that can be assigned directly to variables, etc.
 	struct AstNode *lhs = init_desig_expr(desig, token);
 	// Initialized right value
-	struct AstNode *rhs = init->expr;
-	return new_binary_tree_node(ND_ASSIGN, lhs, rhs, token);
+	return new_binary_tree_node(ND_ASSIGN, lhs, init->expr, token);
 }
 
 // Local variable initializers
@@ -868,8 +873,17 @@ lvar_initializer(struct Token **rest, struct Token *token, struct Obj_Var *var)
 	struct Initializer *init = initializer(rest, token, var->type);
 	// assign initialize
 	struct InitDesig desig = { NULL, 0, var };
+
+	// First assign 0 to all elements, \
+	// then assign values to those that have a specified value
+	struct AstNode *lhs = new_astnode(ND_MEMZERO, token);
+	lhs->var = var;
+
 	// creat initialize for local variable
-	return create_lvar_init(init, var->type, &desig, token);
+	struct AstNode *rhs = create_lvar_init(init, var->type, &desig, token);
+	// left part is all zeroized \
+	// and the right part is the part that needs to be assigned a value
+	return new_binary_tree_node(ND_COMMA, lhs, rhs, token);
 }
 
 // determine if it is a type name
