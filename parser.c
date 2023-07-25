@@ -105,7 +105,9 @@ static struct AstNode *CurSwitch;
 // compoundStmt = (typedef | declaration | stmt)* "}"
 // declaration = declspec (declarator ("=" initializer)?
 //                         ("," declarator ("=" initializer)?)*)? ";"
-// initializer = "{" initializer ("," initializer)* "}" | assign
+// initializer = stringInitializer | arrayInitializer | assign
+// stringInitializer = stringLiteral
+// arrayInitializer = "{" initializer ("," initializer)* "}"
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "switch" "(" expr ")" stmt
@@ -167,6 +169,10 @@ static struct Type *declarator(struct Token **rest, struct Token *token,
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
 static struct AstNode *declaration(struct Token **rest, struct Token *token,
 				   struct Type *base_ty);
+static void initializer2(struct Token **rest, struct Token *token,
+			 struct Initializer *init);
+static struct Initializer *initializer(struct Token **rest, struct Token *token,
+				       struct Type *type);
 static struct AstNode *
 lvar_initializer(struct Token **rest, struct Token *token, struct Obj_Var *var);
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
@@ -790,27 +796,51 @@ static struct Token *skip_excess_element(struct Token *token)
 	return token;
 }
 
+// stringInitializer = stringLiteral
+static void string_initializer(struct Token **rest, struct Token *token,
+			       struct Initializer *init)
+{
+	// take the shortest lengths of arrays and strings
+	int len = MIN(init->type->array_len, token->type->array_len);
+	// iterate and assign values
+	for (int i = 0; i < len; i++)
+		init->children[i]->expr = new_num_astnode(token->str[i], token);
+	*rest = token->next;
+}
+
+// arrayInitializer = "{" initializer ("," initializer)* "}"
+static void array_initializer(struct Token **rest, struct Token *token,
+			      struct Initializer *init)
+{
+	token = skip(token, "{");
+
+	// iterate array
+	for (int i = 0; !consume(rest, token, "}"); i++) {
+		if (i > 0)
+			token = skip(token, ",");
+
+		// normal parsing elements
+		if (i < init->type->array_len)
+			initializer2(&token, token, init->children[i]);
+
+		// skip excess elements
+		else
+			token = skip_excess_element(token);
+	}
+}
+
 // initializer = "{" initializer ("," initializer)* "}" | assign
 static void initializer2(struct Token **rest, struct Token *token,
 			 struct Initializer *init)
 {
-	// "{" initializer ("," initializer)* "}"
+	// Initialization of string literals
+	if (init->type->kind == TY_ARRAY && token->kind == TK_STR) {
+		string_initializer(rest, token, init);
+		return;
+	}
+	// Initialization of array
 	if (init->type->kind == TY_ARRAY) {
-		token = skip(token, "{");
-
-		// iterate array
-		for (int i = 0; !consume(rest, token, "}"); i++) {
-			if (i > 0)
-				token = skip(token, ",");
-
-			// normal parsing elements
-			if (i < init->type->array_len)
-				initializer2(&token, token, init->children[i]);
-			// skip excess elements
-			else
-				token = skip_excess_element(token);
-		}
-		*rest = skip(token, "}");
+		array_initializer(rest, token, init);
 		return;
 	}
 

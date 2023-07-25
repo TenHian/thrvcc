@@ -14,6 +14,9 @@
 #include <string.h>
 #include <strings.h>
 
+#define MAX(x, y) ((x) < (y) ? (y) : (x))
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
+
 enum TokenKind {
 	TK_IDENT, // identifiers
 	TK_PUNCT, // operator like "+" "-"
