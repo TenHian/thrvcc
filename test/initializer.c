@@ -262,6 +262,17 @@ int main()
 		       z.b;
 	       }));
 
+	// [102] other structures can be used when initializing a structure
+	printf("[102] other structures can be used when initializing a structure\n");
+	ASSERT(1, ({
+		       typedef struct {
+			       int a, b;
+		       } T;
+		       T x = { 1, 2 };
+		       T y = x;
+		       y.a;
+	       }));
+
 	printf("OK\n");
 	return 0;
 }

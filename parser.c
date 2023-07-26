@@ -944,6 +944,17 @@ static void initializer2(struct Token **rest, struct Token *token,
 	}
 	// Initialization of structure
 	if (init->type->kind == TY_STRUCT) {
+		// Match assignments using other structures,
+		// which need to be parsed first.
+		if (!equal(token, "{")) {
+			struct AstNode *expr = assign(rest, token);
+			add_type(expr);
+			if (expr->type->kind == TY_STRUCT) {
+				init->expr = expr;
+				return;
+			}
+		}
+
 		struct_initializer(rest, token, init);
 		return;
 	}
@@ -1016,7 +1027,9 @@ static struct AstNode *create_lvar_init(struct Initializer *init,
 		return node;
 	}
 
-	if (type->kind == TY_STRUCT) {
+	// If the value has been assigned to another structure,
+	// then there will be an [expr] and it will not be parsed.
+	if (type->kind == TY_STRUCT && !init->expr) {
 		// construct initializer for struct
 		struct AstNode *node = new_astnode(ND_NULL_EXPR, token);
 
