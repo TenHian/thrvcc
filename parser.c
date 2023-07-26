@@ -108,10 +108,11 @@ static struct AstNode *CurSwitch;
 // declaration = declspec (declarator ("=" initializer)?
 //                         ("," declarator ("=" initializer)?)*)? ";"
 // initializer = stringInitializer | arrayInitializer | structInitializer
-//             | assign
+//             | unionInitializer |assign
 // stringInitializer = stringLiteral
 // arrayInitializer = "{" initializer ("," initializer)* "}"
 // structInitializer = "{" initializer ("," initializer)* "}"
+// unionInitializer = "{" initializer "}"
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "switch" "(" expr ")" stmt
@@ -351,8 +352,8 @@ static struct Initializer *new_initializer(struct Type *type, bool is_flexible)
 			init->children[i] = new_initializer(type->base, false);
 	}
 
-	// deal with structure
-	if (type->kind == TY_STRUCT) {
+	// deal with structure and union
+	if (type->kind == TY_STRUCT || type->kind == TY_UNION) {
 		// caculate the num of struct member
 		int len = 0;
 		for (struct Member *member = type->member; member;
@@ -927,8 +928,18 @@ static void struct_initializer(struct Token **rest, struct Token *token,
 	}
 }
 
+// unionInitializer = "{" initializer "}"
+static void union_initializer(struct Token **rest, struct Token *token,
+			      struct Initializer *init)
+{
+	// union only accepts the first member for initialization
+	token = skip(token, "{");
+	initializer2(&token, token, init->children[0]);
+	*rest = skip(token, "}");
+}
+
 // initializer = stringInitializer | arrayInitializer | structInitializer
-//             | assign
+//             | unionInitializer |assign
 static void initializer2(struct Token **rest, struct Token *token,
 			 struct Initializer *init)
 {
@@ -956,6 +967,12 @@ static void initializer2(struct Token **rest, struct Token *token,
 		}
 
 		struct_initializer(rest, token, init);
+		return;
+	}
+
+	// Initialization of union
+	if (init->type->kind == TY_UNION) {
+		union_initializer(rest, token, init);
 		return;
 	}
 
@@ -1043,6 +1060,14 @@ static struct AstNode *create_lvar_init(struct Initializer *init,
 			node = new_binary_tree_node(ND_COMMA, node, rhs, token);
 		}
 		return node;
+	}
+
+	if (type->kind == TY_UNION) {
+		// desig2 stored union member
+		struct InitDesig desig2 = { desig, 0, type->member };
+		// process with first member only
+		return create_lvar_init(init->children[0], type->member->type,
+					&desig2, token);
 	}
 
 	// If the expr to be used as the right value is null, \

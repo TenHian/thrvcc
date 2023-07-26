@@ -273,6 +273,33 @@ int main()
 		       y.a;
 	       }));
 
+	// [103] handling union initialization for local variables
+	printf("[103] handling union initialization for local variables\n");
+	ASSERT(4, ({
+		       union {
+			       int a;
+			       char b[4];
+		       } x = { 0x01020304 };
+		       x.b[0];
+	       }));
+	ASSERT(3, ({
+		       union {
+			       int a;
+			       char b[4];
+		       } x = { 0x01020304 };
+		       x.b[1];
+	       }));
+
+	ASSERT(0x01020304, ({
+		       union {
+			       struct {
+				       char a, b, c, d;
+			       } e;
+			       int f;
+		       } x = { { 4, 3, 2, 1 } };
+		       x.f;
+	       }));
+
 	printf("OK\n");
 	return 0;
 }
