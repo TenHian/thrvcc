@@ -56,6 +56,7 @@ struct Initializer {
 struct InitDesig {
 	struct InitDesig *next;
 	int idx;
+	struct Member *member;
 	struct Obj_Var *var;
 };
 
@@ -106,9 +107,11 @@ static struct AstNode *CurSwitch;
 // compoundStmt = (typedef | declaration | stmt)* "}"
 // declaration = declspec (declarator ("=" initializer)?
 //                         ("," declarator ("=" initializer)?)*)? ";"
-// initializer = stringInitializer | arrayInitializer | assign
+// initializer = stringInitializer | arrayInitializer | structInitializer
+//             | assign
 // stringInitializer = stringLiteral
 // arrayInitializer = "{" initializer ("," initializer)* "}"
+// structInitializer = "{" initializer ("," initializer)* "}"
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "switch" "(" expr ")" stmt
@@ -346,6 +349,25 @@ static struct Initializer *new_initializer(struct Type *type, bool is_flexible)
 		// iterate through the outermost elements of the array, and parse it
 		for (int i = 0; i < type->array_len; ++i)
 			init->children[i] = new_initializer(type->base, false);
+	}
+
+	// deal with structure
+	if (type->kind == TY_STRUCT) {
+		// caculate the num of struct member
+		int len = 0;
+		for (struct Member *member = type->member; member;
+		     member = member->next)
+			++len;
+
+		// initialize initializer's children
+		init->children = calloc(len, sizeof(struct Initializer *));
+
+		// iterate children and assign it
+		for (struct Member *member = type->member; member;
+		     member = member->next)
+			init->children[member->idx] =
+				new_initializer(member->type, false);
+		return init;
 	}
 	return init;
 }
@@ -877,7 +899,36 @@ static void array_initializer(struct Token **rest, struct Token *token,
 	}
 }
 
-// initializer = "{" initializer ("," initializer)* "}" | assign
+// structInitializer = "{" initializer ("," initializer)* "}"
+static void struct_initializer(struct Token **rest, struct Token *token,
+			       struct Initializer *init)
+{
+	token = skip(token, "{");
+
+	// struct member list
+	struct Member *member = init->type->member;
+
+	while (!consume(rest, token, "}")) {
+		// if [member] not pointer to [init->type->member],
+		// means that [member] performed <next> operation,
+		// it is not the first
+		if (member != init->type->member)
+			token = skip(token, ",");
+
+		if (member) {
+			// deal with member
+			initializer2(&token, token,
+				     init->children[member->idx]);
+			member = member->next;
+		} else {
+			// deal with excess member
+			token = skip_excess_element(token);
+		}
+	}
+}
+
+// initializer = stringInitializer | arrayInitializer | structInitializer
+//             | assign
 static void initializer2(struct Token **rest, struct Token *token,
 			 struct Initializer *init)
 {
@@ -889,6 +940,11 @@ static void initializer2(struct Token **rest, struct Token *token,
 	// Initialization of array
 	if (init->type->kind == TY_ARRAY) {
 		array_initializer(rest, token, init);
+		return;
+	}
+	// Initialization of structure
+	if (init->type->kind == TY_STRUCT) {
+		struct_initializer(rest, token, init);
 		return;
 	}
 
@@ -919,9 +975,17 @@ static struct AstNode *init_desig_expr(struct InitDesig *desig,
 	if (desig->var)
 		return new_var_astnode(desig->var, token);
 
+	// return member of [Desig]
+	if (desig->member) {
+		struct AstNode *node = new_unary_tree_node(
+			ND_MEMBER, init_desig_expr(desig->next, token), token);
+		node->member = desig->member;
+		return node;
+	}
+
 	// Name of the variable to be assigned
 	// Recursive to the next outer Desig,
-	// there is at this point the outermost Desig->Var
+	// at this point in outermost there is a [Desig->Var] or a [Desig->member]
 	// The offsets are then calculated layer by layer
 	struct AstNode *lhs = init_desig_expr(desig->next, token);
 	// offset
@@ -952,6 +1016,22 @@ static struct AstNode *create_lvar_init(struct Initializer *init,
 		return node;
 	}
 
+	if (type->kind == TY_STRUCT) {
+		// construct initializer for struct
+		struct AstNode *node = new_astnode(ND_NULL_EXPR, token);
+
+		for (struct Member *member = type->member; member;
+		     member = member->next) {
+			// desig2 stored struct member
+			struct InitDesig desig2 = { desig, 0, member };
+			struct AstNode *rhs =
+				create_lvar_init(init->children[member->idx],
+						 member->type, &desig2, token);
+			node = new_binary_tree_node(ND_COMMA, node, rhs, token);
+		}
+		return node;
+	}
+
 	// If the expr to be used as the right value is null, \
 	// it is set to the null expr
 	if (!init->expr)
@@ -972,7 +1052,7 @@ lvar_initializer(struct Token **rest, struct Token *token, struct Obj_Var *var)
 	struct Initializer *init =
 		initializer(rest, token, var->type, &var->type);
 	// assign initialize
-	struct InitDesig desig = { NULL, 0, var };
+	struct InitDesig desig = { NULL, 0, NULL, var };
 
 	// First assign 0 to all elements, \
 	// then assign values to those that have a specified value
@@ -1852,6 +1932,8 @@ static void struct_members(struct Token **rest, struct Token *token,
 {
 	struct Member head = {};
 	struct Member *cur = &head;
+	// record the index value of a member
+	int idx = 0;
 
 	while (!equal(token, "}")) {
 		// declspec
@@ -1863,11 +1945,14 @@ static void struct_members(struct Token **rest, struct Token *token,
 				token = skip(token, ",");
 			first = false;
 
-			struct Member *mem = calloc(1, sizeof(struct Member));
+			struct Member *member =
+				calloc(1, sizeof(struct Member));
 			// declarator
-			mem->type = declarator(&token, token, base_ty);
-			mem->name = mem->type->name;
-			cur = cur->next = mem;
+			member->type = declarator(&token, token, base_ty);
+			member->name = member->type->name;
+			// the index value corresponding to the member
+			member->idx = idx++;
+			cur = cur->next = member;
 		}
 	}
 	*rest = token->next;

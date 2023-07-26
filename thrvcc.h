@@ -134,6 +134,7 @@ struct Member {
 	struct Type *type;
 	struct Token *tok; // to improve error-reporting
 	struct Token *name;
+	int idx;
 	int offset;
 };
 
