@@ -121,6 +121,7 @@ struct Type {
 
 	// struct
 	struct Member *member;
+	bool is_flexible;
 
 	// function type
 	struct Type *return_type; // function return type

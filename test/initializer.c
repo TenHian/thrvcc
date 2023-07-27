@@ -57,6 +57,17 @@ char g43[][4] = { 'f', 'o', 'o', 0, 'b', 'a', 'r', 0 };
 // [108] allowed scalar initialization with extra braces
 char *g44 = { "foo" };
 
+// [112] support for initializing flexible array members of structure
+typedef char T60[];
+T60 g60 = { 1, 2, 3 };
+T60 g61 = { 1, 2, 3, 4, 5, 6 };
+
+typedef struct {
+	char a, b[];
+} T65;
+T65 g65 = { 'f', 'o', 'o', 0 };
+T65 g66 = { 'f', 'o', 'o', 'b', 'a', 'r', 0 };
+
 int main()
 {
 	// [96] Support for local variable initializers
@@ -502,6 +513,17 @@ int main()
 	// [111] support for flexible array members
 	printf("[111] support for flexible array members\n");
 	ASSERT(4, sizeof(struct { int x, y[]; }));
+
+	// [112] support for initializing flexible array members of structure
+	printf("[112] support for initializing flexible array members of structure\n");
+	ASSERT(3, sizeof(g60));
+	ASSERT(6, sizeof(g61));
+
+	ASSERT(4, sizeof(g65));
+	ASSERT(7, sizeof(g66));
+	ASSERT('f', g65.a);
+	ASSERT(0, strcmp(g65.b, "oo"));
+	ASSERT(0, strcmp(g66.b, "oobar"));
 
 	printf("OK\n");
 	return 0;

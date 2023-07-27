@@ -376,9 +376,23 @@ static struct Initializer *new_initializer(struct Type *type, bool is_flexible)
 
 		// iterate children and assign it
 		for (struct Member *member = type->member; member;
-		     member = member->next)
-			init->children[member->idx] =
-				new_initializer(member->type, false);
+		     member = member->next) {
+			// determines whether a structure is flexible
+			// while a member is also flexible and is the last.
+			// constructed directly here
+			// to avoid parsing of flexible arrays.
+			if (is_flexible && type->is_flexible && !member->next) {
+				struct Initializer *child =
+					calloc(1, sizeof(struct Initializer));
+				child->type = member->type;
+				child->is_flexible = true;
+				init->children[member->idx] = child;
+			} else {
+				// assign values to non-flexible members
+				init->children[member->idx] =
+					new_initializer(member->type, false);
+			}
+		}
 		return init;
 	}
 	return init;
@@ -1077,6 +1091,27 @@ static void initializer2(struct Token **rest, struct Token *token,
 	init->expr = assign(rest, token);
 }
 
+// copy the type of a structure
+static struct Type *copy_struct_type(struct Type *type)
+{
+	type = copy_type(type);
+
+	// copy the type of struct members
+	struct Member head = {};
+	struct Member *cur = &head;
+	// iterate through members
+	for (struct Member *member = type->member; member;
+	     member = member->next) {
+		struct Member *m = calloc(1, sizeof(struct Member));
+		*m = *member;
+		cur->next = m;
+		cur = cur->next;
+	}
+
+	type->member = head.next;
+	return type;
+}
+
 // initializer
 static struct Initializer *initializer(struct Token **rest, struct Token *token,
 				       struct Type *type,
@@ -1086,6 +1121,25 @@ static struct Initializer *initializer(struct Token **rest, struct Token *token,
 	struct Initializer *init = new_initializer(type, true);
 	// Parsing needs to be assigned to Init
 	initializer2(rest, token, init);
+
+	if ((type->kind == TY_STRUCT || type->kind == TY_UNION) &&
+	    type->is_flexible) {
+		type = copy_struct_type(type);
+
+		struct Member *member = type->member;
+		// iterate till end
+		while (member->next)
+			member = member->next;
+		// flexible array type replacement with actual array type
+		member->type = init->children[member->idx]->type;
+		// add structure type size
+		type->size += member->type->size;
+
+		// return new type into variable
+		*new_type = type;
+		return init;
+	}
+
 	// Pass the new type back to the variable.
 	*new_type = init->type;
 	return init;
@@ -2238,8 +2292,11 @@ static void struct_members(struct Token **rest, struct Token *token,
 
 	// parsing flexible array member with array size set to 0
 	if (cur != &head && cur->type->kind == TY_ARRAY &&
-	    cur->type->array_len < 0)
+	    cur->type->array_len < 0) {
 		cur->type = array_of(cur->type->base, 0);
+		// set type flexible
+		type->is_flexible = true;
+	}
 
 	*rest = token->next;
 	type->member = head.next;
