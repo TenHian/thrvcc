@@ -1037,6 +1037,13 @@ static void initializer2(struct Token **rest, struct Token *token,
 		return;
 	}
 
+	// deal with braces outside of scalar, e.g. int x = {3};
+	if (equal(token, "{")) {
+		initializer2(&token, token->next, init);
+		*rest = skip(token, "}");
+		return;
+	}
+
 	// assign
 	// store expr for node
 	init->expr = assign(rest, token);
