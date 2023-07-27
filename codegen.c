@@ -611,14 +611,26 @@ static void emit_data(struct Obj_Var *prog)
 		// determine if there is a value
 		if (var->init_data) {
 			println("%s:", var->name);
-			// print string content, include escaped characters
-			for (int i = 0; i < var->type->size; ++i) {
-				char c = var->init_data[i];
-				if (isprint(c))
-					println("  .byte %d\t# character: %c",
-						c, c);
-				else
-					println("  .byte %d", c);
+			struct Relocation *rel = var->rel;
+			int position = 0;
+			while (position < var->type->size) {
+				if (rel && rel->offset == position) {
+					// use other variable to initialize
+					println("  # global variable %s",
+						var->name);
+					println("  .quad %s%+ld", rel->label,
+						rel->addend);
+					rel = rel->next;
+					position += 8;
+				} else {
+					// print string content, include escaped characters
+					char c = var->init_data[position++];
+					if (isprint(c))
+						println("  .byte %d\t# character: %c",
+							c, c);
+					else
+						println("  .byte %d", c);
+				}
 			}
 		} else {
 			println("\n  # global varable %s", var->name);

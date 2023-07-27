@@ -187,6 +187,8 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token);
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token);
 static struct AstNode *expr(struct Token **rest, struct Token *token);
 static int64_t eval(struct AstNode *node);
+static int64_t eval2(struct AstNode *node, char **label);
+static int64_t eval_rval(struct AstNode *node, char **label);
 static int64_t const_expr(struct Token **rest, struct Token *token);
 static struct AstNode *assign(struct Token **rest, struct Token *token);
 static struct AstNode *conditional(struct Token **rest, struct Token *token);
@@ -1122,31 +1124,60 @@ static void write_buf(char *buf, uint64_t val, int size)
 }
 
 // write data into global variable initializer(GVI)
-static void write_gvar_data(struct Initializer *init, struct Type *type,
-			    char *buf, int offset)
+static struct Relocation *write_gvar_data(struct Relocation *cur,
+					  struct Initializer *init,
+					  struct Type *type, char *buf,
+					  int offset)
 {
 	// process array
 	if (type->kind == TY_ARRAY) {
 		int size = type->base->size;
 		for (int i = 0; i < type->array_len; i++)
-			write_gvar_data(init->children[i], type->base, buf,
-					offset + size * i);
-		return;
+			cur = write_gvar_data(cur, init->children[i],
+					      type->base, buf,
+					      offset + size * i);
+		return cur;
 	}
 
 	// process structure
 	if (type->kind == TY_STRUCT) {
 		for (struct Member *member = type->member; member;
 		     member = member->next)
-			write_gvar_data(init->children[member->idx],
-					member->type, buf,
-					offset + member->offset);
-		return;
+			cur = write_gvar_data(cur, init->children[member->idx],
+					      member->type, buf,
+					      offset + member->offset);
+		return cur;
 	}
 
-	// calculate const expr
-	if (init->expr)
-		write_buf(buf + offset, eval(init->expr), type->size);
+	// process union
+	if (type->kind == TY_UNION) {
+		return write_gvar_data(cur, init->children[0],
+				       type->member->type, buf, offset);
+	}
+
+	// if return here, make buf 0
+	if (!init->expr)
+		return cur;
+
+	// preset the other global variables' name that to be used
+	char *label = NULL;
+	uint64_t val = eval2(init->expr, &label);
+
+	// if label not exist, means could calculate const expr directly
+	if (!label) {
+		write_buf(buf + offset, val, type->size);
+		return cur;
+	}
+
+	// if label exist, means it used other global variables
+	struct Relocation *rel = calloc(1, sizeof(struct Relocation));
+	rel->offset = offset;
+	rel->label = label;
+	rel->addend = val;
+
+	// push into list top
+	cur->next = rel;
+	return cur->next;
 }
 
 // global variables need to \
@@ -1160,9 +1191,14 @@ static void gvar_initializer(struct Token **rest, struct Token *token,
 		initializer(rest, token, var->type, &var->type);
 
 	// write data after calculate
+	// creat a new relocation list
+	struct Relocation head = {};
 	char *buf = calloc(1, var->type->size);
-	write_gvar_data(init, var->type, buf, 0);
+	write_gvar_data(&head, init, var->type, buf, 0);
+	// global variables's data
 	var->init_data = buf;
+	// return head.next, list head is empty
+	var->rel = head.next;
 }
 
 // determine if it is a type name
@@ -1485,16 +1521,22 @@ static struct AstNode *expr(struct Token **rest, struct Token *token)
 	return node;
 }
 
-// Compute a constant expression for a given node
 static int64_t eval(struct AstNode *node)
+{
+	return eval2(node, NULL);
+}
+
+// Compute a constant expression for a given node
+// const expr can be number or addr +/- offser
+static int64_t eval2(struct AstNode *node, char **label)
 {
 	add_type(node);
 
 	switch (node->kind) {
 	case ND_ADD:
-		return eval(node->lhs) + eval(node->rhs);
+		return eval2(node->lhs, label) + eval(node->rhs);
 	case ND_SUB:
-		return eval(node->lhs) - eval(node->rhs);
+		return eval2(node->lhs, label) - eval(node->rhs);
 	case ND_MUL:
 		return eval(node->lhs) * eval(node->rhs);
 	case ND_DIV:
@@ -1522,10 +1564,10 @@ static int64_t eval(struct AstNode *node)
 	case ND_LE:
 		return eval(node->lhs) <= eval(node->rhs);
 	case ND_COND:
-		return eval(node->condition) ? eval(node->then_) :
-					       eval(node->else_);
+		return eval(node->condition) ? eval2(node->then_, label) :
+					       eval2(node->else_, label);
 	case ND_COMMA:
-		return eval(node->rhs);
+		return eval2(node->rhs, label);
 	case ND_NOT:
 		return !eval(node->lhs);
 	case ND_BITNOT:
@@ -1534,18 +1576,41 @@ static int64_t eval(struct AstNode *node)
 		return eval(node->lhs) && eval(node->rhs);
 	case ND_LOGOR:
 		return eval(node->lhs) || eval(node->rhs);
-	case ND_CAST:
+	case ND_CAST: {
+		int64_t val = eval2(node->lhs, label);
 		if (is_integer(node->type)) {
 			switch (node->type->size) {
 			case 1:
-				return (uint8_t)eval(node->lhs);
+				return (uint8_t)val;
 			case 2:
-				return (uint16_t)eval(node->lhs);
+				return (uint16_t)val;
 			case 4:
-				return (uint32_t)eval(node->lhs);
+				return (uint32_t)val;
 			}
 		}
-		return eval(node->lhs);
+		return val;
+	}
+	case ND_ADDR:
+		return eval_rval(node->lhs, label);
+	case ND_MEMBER:
+		// no label address, means not a const expr
+		if (!label)
+			error_token(node->tok, "not a compile-time constant");
+		// could not be an array
+		if (node->type->kind != TY_ARRAY)
+			error_token(node->tok, "invalid initializer");
+		// return left value(and parse label) + member offset
+		return eval_rval(node->lhs, label) + node->member->offset;
+	case ND_VAR:
+		// no label address, means not a const expr
+		if (!label)
+			error_token(node->tok, "not a compile-time constant");
+		// could not be an array or function
+		if (node->var->type->kind != TY_ARRAY &&
+		    node->var->type->kind != TY_FUNC)
+			error_token(node->tok, "invalid initializer");
+		*label = node->var->name;
+		return 0;
 	case ND_NUM:
 		return node->val;
 	default:
@@ -1553,6 +1618,30 @@ static int64_t eval(struct AstNode *node)
 	}
 
 	error_token(node->tok, "not a compile-time constant");
+	return -1;
+}
+
+// calculate relocation variables
+static int64_t eval_rval(struct AstNode *node, char **label)
+{
+	switch (node->kind) {
+	case ND_VAR:
+		// local variable could not take part in global variable initialize
+		if (node->var->is_local)
+			error_token(node->tok, "not a compile-time constant");
+		*label = node->var->name;
+		return 0;
+	case ND_DEREF:
+		// enter into dereference address
+		return eval2(node->lhs, label);
+	case ND_MEMBER:
+		// plus member offset
+		return eval_rval(node->lhs, label) + node->member->offset;
+	default:
+		break;
+	}
+
+	error_token(node->tok, "invalid initializer");
 	return -1;
 }
 

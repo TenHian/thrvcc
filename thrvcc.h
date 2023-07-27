@@ -138,6 +138,13 @@ struct Member {
 	int offset;
 };
 
+struct Relocation {
+	struct Relocation *next;
+	int offset;
+	char *label;
+	long addend;
+};
+
 // variable or function
 struct Obj_Var {
 	struct Obj_Var *next; // point to next local_var
@@ -154,7 +161,8 @@ struct Obj_Var {
 	bool is_static; // is it in file scope?
 
 	// global var
-	char *init_data;
+	char *init_data; // the data be used to initialize
+	struct Relocation *rel; // the pointer point to other global variables
 
 	// function
 	struct Obj_Var *params; // parameters
