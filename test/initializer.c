@@ -1,5 +1,11 @@
 #include "test.h"
 
+// [104] global variable initializer support for scalars and strings
+char g3 = 3;
+short g4 = 4;
+int g5 = 5;
+long g6 = 6;
+
 int main()
 {
 	// [96] Support for local variable initializers
@@ -299,6 +305,13 @@ int main()
 		       } x = { { 4, 3, 2, 1 } };
 		       x.f;
 	       }));
+
+	// [104] global variable initializer support for scalars and strings
+	printf("[104] global variable initializer support for scalars and strings\n");
+	ASSERT(3, g3);
+	ASSERT(4, g4);
+	ASSERT(5, g5);
+	ASSERT(6, g6);
 
 	printf("OK\n");
 	return 0;

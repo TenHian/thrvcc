@@ -181,9 +181,12 @@ static struct Initializer *initializer(struct Token **rest, struct Token *token,
 				       struct Type **new_type);
 static struct AstNode *
 lvar_initializer(struct Token **rest, struct Token *token, struct Obj_Var *var);
+static void gvar_initializer(struct Token **rest, struct Token *token,
+			     struct Obj_Var *var);
 static struct AstNode *stmt(struct Token **rest, struct Token *token);
 static struct AstNode *exprstmt(struct Token **rest, struct Token *token);
 static struct AstNode *expr(struct Token **rest, struct Token *token);
+static int64_t eval(struct AstNode *node);
 static int64_t const_expr(struct Token **rest, struct Token *token);
 static struct AstNode *assign(struct Token **rest, struct Token *token);
 static struct AstNode *conditional(struct Token **rest, struct Token *token);
@@ -195,7 +198,6 @@ static struct AstNode *bit_and(struct Token **rest, struct Token *token);
 static struct AstNode *equality(struct Token **rest, struct Token *token);
 static struct AstNode *relational(struct Token **rest, struct Token *token);
 static struct AstNode *shift(struct Token **rest, struct Token *token);
-static struct AstNode *expr(struct Token **rest, struct Token *token);
 static struct AstNode *add(struct Token **rest, struct Token *token);
 static struct AstNode *new_add(struct AstNode *lhs, struct AstNode *rhs,
 			       struct Token *token);
@@ -1102,6 +1104,55 @@ lvar_initializer(struct Token **rest, struct Token *token, struct Obj_Var *var)
 	// left part is all zeroized \
 	// and the right part is the part that needs to be assigned a value
 	return new_binary_tree_node(ND_COMMA, lhs, rhs, token);
+}
+
+// temporarily converted to [buf] type to store "val"
+static void write_buf(char *buf, uint64_t val, int size)
+{
+	if (size == 1)
+		*buf = val;
+	else if (size == 2)
+		*(uint16_t *)buf = val;
+	else if (size == 4)
+		*(uint32_t *)buf = val;
+	else if (size == 8)
+		*(uint64_t *)buf = val;
+	else
+		unreachable();
+}
+
+// write data into global variable initializer(GVI)
+static void write_gvar_data(struct Initializer *init, struct Type *type,
+			    char *buf, int offset)
+{
+	// process data
+	if (type->kind == TY_ARRAY) {
+		int size = type->base->size;
+		for (int i = 0; i < type->array_len; i++)
+			write_gvar_data(init->children[i], type->base, buf,
+					offset + size * i);
+		return;
+	}
+
+	// calculate const expr
+	if (init->expr)
+		write_buf(buf + offset, eval(init->expr), type->size);
+}
+
+// global variables need to \
+// have their initialized values calculated at compile time \
+// and then written to the .data segment.
+static void gvar_initializer(struct Token **rest, struct Token *token,
+			     struct Obj_Var *var)
+{
+	// get initializer
+	struct Initializer *init =
+		initializer(rest, token, var->type, &var->type);
+
+	// write data after calculate
+	char *buf = calloc(1, var->type->size);
+	write_gvar_data(init, var->type, buf, 0);
+	var->init_data = buf;
 }
 
 // determine if it is a type name
@@ -2412,7 +2463,10 @@ static struct Token *global_variable(struct Token *token,
 		first = false;
 
 		struct Type *type = declarator(&token, token, base_type);
-		new_gvar(get_ident(type->name), type);
+		// global variable initialize
+		struct Obj_Var *var = new_gvar(get_ident(type->name), type);
+		if (equal(token, "="))
+			gvar_initializer(&token, token->next, var);
 	}
 	return token;
 }
