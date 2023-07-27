@@ -1125,12 +1125,22 @@ static void write_buf(char *buf, uint64_t val, int size)
 static void write_gvar_data(struct Initializer *init, struct Type *type,
 			    char *buf, int offset)
 {
-	// process data
+	// process array
 	if (type->kind == TY_ARRAY) {
 		int size = type->base->size;
 		for (int i = 0; i < type->array_len; i++)
 			write_gvar_data(init->children[i], type->base, buf,
 					offset + size * i);
+		return;
+	}
+
+	// process structure
+	if (type->kind == TY_STRUCT) {
+		for (struct Member *member = type->member; member;
+		     member = member->next)
+			write_gvar_data(init->children[member->idx],
+					member->type, buf,
+					offset + member->offset);
 		return;
 	}
 
