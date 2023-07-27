@@ -110,8 +110,15 @@ static struct AstNode *CurSwitch;
 // initializer = stringInitializer | arrayInitializer | structInitializer
 //             | unionInitializer |assign
 // stringInitializer = stringLiteral
-// arrayInitializer = "{" initializer ("," initializer)* "}"
-// structInitializer = "{" initializer ("," initializer)* "}"
+
+// arrayInitializer = arrayInitializer1 | arrayInitializer2
+// arrayInitializer1 = "{" initializer ("," initializer)* "}"
+// arrayIntializer2 = initializer ("," initializer)*
+
+// structInitializer = structInitializer1 | structInitializer2
+// structInitializer1 = "{" initializer ("," initializer)* "}"
+// structIntializer2 = initializer ("," initializer)*
+
 // unionInitializer = "{" initializer "}"
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
@@ -874,9 +881,9 @@ static int count_array_init_elements(struct Token *token, struct Type *type)
 	return i;
 }
 
-// arrayInitializer = "{" initializer ("," initializer)* "}"
-static void array_initializer(struct Token **rest, struct Token *token,
-			      struct Initializer *init)
+// arrayInitializer1 = "{" initializer ("," initializer)* "}"
+static void array_initializer1(struct Token **rest, struct Token *token,
+			       struct Initializer *init)
 {
 	token = skip(token, "{");
 
@@ -904,9 +911,30 @@ static void array_initializer(struct Token **rest, struct Token *token,
 	}
 }
 
-// structInitializer = "{" initializer ("," initializer)* "}"
-static void struct_initializer(struct Token **rest, struct Token *token,
-			       struct Initializer *init)
+// arrayIntializer2 = initializer ("," initializer)*
+static void array_intializer2(struct Token **rest, struct Token *token,
+			      struct Initializer *init)
+{
+	// if array is adjustable, calculate array len,
+	// then construct initializer
+	if (init->is_flexible) {
+		int len = count_array_init_elements(token, init->type);
+		*init = *new_initializer(array_of(init->type->base, len),
+					 false);
+	}
+
+	// iterate through array
+	for (int i = 0; i < init->type->array_len && !equal(token, "}"); i++) {
+		if (i > 0)
+			token = skip(token, ",");
+		initializer2(&token, token, init->children[i]);
+	}
+	*rest = token;
+}
+
+// structInitializer1 = "{" initializer ("," initializer)* "}"
+static void struct_initializer1(struct Token **rest, struct Token *token,
+				struct Initializer *init)
 {
 	token = skip(token, "{");
 
@@ -932,14 +960,37 @@ static void struct_initializer(struct Token **rest, struct Token *token,
 	}
 }
 
+// structIntializer2 = initializer ("," initializer)*
+static void struct_initializer2(struct Token **rest, struct Token *token,
+				struct Initializer *init)
+{
+	bool first = true;
+
+	// iterate all member
+	for (struct Member *member = init->type->member;
+	     member && !equal(token, "}"); member = member->next) {
+		if (!first)
+			token = skip(token, ",");
+		first = false;
+		initializer2(&token, token, init->children[member->idx]);
+	}
+
+	*rest = token;
+}
+
 // unionInitializer = "{" initializer "}"
 static void union_initializer(struct Token **rest, struct Token *token,
 			      struct Initializer *init)
 {
 	// union only accepts the first member for initialization
-	token = skip(token, "{");
-	initializer2(&token, token, init->children[0]);
-	*rest = skip(token, "}");
+	if (equal(token, "{")) {
+		// if {} exist
+		initializer2(&token, token->next, init->children[0]);
+		*rest = skip(token, "}");
+	} else {
+		// {} not exist
+		initializer2(rest, token, init->children[0]);
+	}
 }
 
 // initializer = stringInitializer | arrayInitializer | structInitializer
@@ -954,23 +1005,29 @@ static void initializer2(struct Token **rest, struct Token *token,
 	}
 	// Initialization of array
 	if (init->type->kind == TY_ARRAY) {
-		array_initializer(rest, token, init);
+		if (equal(token, "{"))
+			array_initializer1(rest, token, init);
+		else
+			array_intializer2(rest, token, init);
 		return;
 	}
 	// Initialization of structure
 	if (init->type->kind == TY_STRUCT) {
 		// Match assignments using other structures,
 		// which need to be parsed first.
-		if (!equal(token, "{")) {
-			struct AstNode *expr = assign(rest, token);
-			add_type(expr);
-			if (expr->type->kind == TY_STRUCT) {
-				init->expr = expr;
-				return;
-			}
+		if (equal(token, "{")) {
+			struct_initializer1(rest, token, init);
+			return;
 		}
 
-		struct_initializer(rest, token, init);
+		struct AstNode *expr = assign(rest, token);
+		add_type(expr);
+		if (expr->type->kind == TY_STRUCT) {
+			init->expr = expr;
+			return;
+		}
+
+		struct_initializer2(rest, token, init);
 		return;
 	}
 
