@@ -461,6 +461,44 @@ int main()
 	printf("[108] allowed scalar initialization with extra braces\n");
 	ASSERT(0, strcmp(g44, "foo"));
 
+	// [109] allowed enum type or initializer to have extraneous commas
+	printf("[109] allowed enum type or initializer to have extraneous commas\n");
+	ASSERT(3, ({
+		       int a[] = {
+			       1,
+			       2,
+			       3,
+		       };
+		       a[2];
+	       }));
+	ASSERT(1, ({
+		       struct {
+			       int a, b, c;
+		       } x = {
+			       1,
+			       2,
+			       3,
+		       };
+		       x.a;
+	       }));
+	ASSERT(1, ({
+		       union {
+			       int a;
+			       char b;
+		       } x = {
+			       1,
+		       };
+		       x.a;
+	       }));
+	ASSERT(2, ({
+		       enum {
+			       x,
+			       y,
+			       z,
+		       };
+		       z;
+	       }));
+
 	printf("OK\n");
 	return 0;
 }

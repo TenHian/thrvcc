@@ -97,7 +97,7 @@ static struct AstNode *CurSwitch;
 //             | enumSpecifier)+
 // enumSpecifier = ident? "{" enumList? "}"
 //                 | ident ("{" enumList? "}")?
-// enumList = ident ("=" constExpr)? ("," ident ("=" constExpr)?)*
+// enumList = ident ("=" constExpr)? ("," ident ("=" constExpr)?)* ","?
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = "(" funcParams | "[" arrayDimensions | ε
 // arrayDimensions = constExpr? "]" typeSuffix
@@ -112,12 +112,12 @@ static struct AstNode *CurSwitch;
 // stringInitializer = stringLiteral
 
 // arrayInitializer = arrayInitializer1 | arrayInitializer2
-// arrayInitializer1 = "{" initializer ("," initializer)* "}"
-// arrayIntializer2 = initializer ("," initializer)*
+// arrayInitializer1 = "{" initializer ("," initializer)* ","? "}"
+// arrayIntializer2 = initializer ("," initializer)* ","?
 
 // structInitializer = structInitializer1 | structInitializer2
-// structInitializer1 = "{" initializer ("," initializer)* "}"
-// structIntializer2 = initializer ("," initializer)*
+// structInitializer1 = "{" initializer ("," initializer)* ","? "}"
+// structIntializer2 = initializer ("," initializer)* ","?
 
 // unionInitializer = "{" initializer "}"
 // stmt = "return" expr ";"
@@ -728,10 +728,38 @@ static struct Type *type_name(struct Token **rest, struct Token *token)
 	return abstract_declarator(rest, token, type);
 }
 
+// determine if the terminator matches the end
+static bool is_end(struct Token *token)
+{
+	// "}" | ",}"
+	return equal(token, "}") ||
+	       (equal(token, ",") && equal(token->next, "}"));
+}
+
+// consume the terminator at the end
+// "}" | ",}"
+static bool consume_end(struct Token **rest, struct Token *token)
+{
+	// "}"
+	if (equal(token, "}")) {
+		*rest = token->next;
+		return true;
+	}
+
+	// ",}"
+	if (equal(token, ",") && equal(token->next, "}")) {
+		*rest = token->next->next;
+		return true;
+	}
+
+	// do not consume those characters
+	return false;
+}
+
 // get enum type val
 // enumSpecifier = ident? "{" enumList? "}"
 //               | ident ("{" enumList? "}")?
-// enumList      = ident ("=" constExpr)? ("," ident ("=" constExpr)?)*
+// enumList      = ident ("=" constExpr)? ("," ident ("=" constExpr)?)* ","?
 static struct Type *enum_specifier(struct Token **rest, struct Token *token)
 {
 	struct Type *type = enum_type();
@@ -762,7 +790,7 @@ static struct Type *enum_specifier(struct Token **rest, struct Token *token)
 	// read enum list
 	int I = 0; // enum constants counter
 	int val = 0; // enum constants val
-	while (!equal(token, "}")) {
+	while (!consume_end(rest, token)) {
 		if (I++ > 0)
 			token = skip(token, ",");
 
@@ -778,8 +806,6 @@ static struct Type *enum_specifier(struct Token **rest, struct Token *token)
 		vsp->_enum = type;
 		vsp->enum_val = val++;
 	}
-
-	*rest = token->next;
 
 	if (tag)
 		push_tag_scope(tag, type);
@@ -873,7 +899,7 @@ static int count_array_init_elements(struct Token *token, struct Type *type)
 	// count
 	int i = 0;
 
-	for (; !equal(token, "}"); i++) {
+	for (; !consume_end(&token, token); i++) {
 		if (i > 0)
 			token = skip(token, ",");
 		initializer2(&token, token, dummy);
@@ -881,7 +907,7 @@ static int count_array_init_elements(struct Token *token, struct Type *type)
 	return i;
 }
 
-// arrayInitializer1 = "{" initializer ("," initializer)* "}"
+// arrayInitializer1 = "{" initializer ("," initializer)* ","? "}"
 static void array_initializer1(struct Token **rest, struct Token *token,
 			       struct Initializer *init)
 {
@@ -897,7 +923,7 @@ static void array_initializer1(struct Token **rest, struct Token *token,
 	}
 
 	// iterate array
-	for (int i = 0; !consume(rest, token, "}"); i++) {
+	for (int i = 0; !consume_end(rest, token); i++) {
 		if (i > 0)
 			token = skip(token, ",");
 
@@ -911,7 +937,7 @@ static void array_initializer1(struct Token **rest, struct Token *token,
 	}
 }
 
-// arrayIntializer2 = initializer ("," initializer)*
+// arrayIntializer2 = initializer ("," initializer)* ","?
 static void array_intializer2(struct Token **rest, struct Token *token,
 			      struct Initializer *init)
 {
@@ -924,7 +950,7 @@ static void array_intializer2(struct Token **rest, struct Token *token,
 	}
 
 	// iterate through array
-	for (int i = 0; i < init->type->array_len && !equal(token, "}"); i++) {
+	for (int i = 0; i < init->type->array_len && !is_end(token); i++) {
 		if (i > 0)
 			token = skip(token, ",");
 		initializer2(&token, token, init->children[i]);
@@ -932,7 +958,7 @@ static void array_intializer2(struct Token **rest, struct Token *token,
 	*rest = token;
 }
 
-// structInitializer1 = "{" initializer ("," initializer)* "}"
+// structInitializer1 = "{" initializer ("," initializer)* ","? "}"
 static void struct_initializer1(struct Token **rest, struct Token *token,
 				struct Initializer *init)
 {
@@ -941,7 +967,7 @@ static void struct_initializer1(struct Token **rest, struct Token *token,
 	// struct member list
 	struct Member *member = init->type->member;
 
-	while (!consume(rest, token, "}")) {
+	while (!consume_end(rest, token)) {
 		// if [member] not pointer to [init->type->member],
 		// means that [member] performed <next> operation,
 		// it is not the first
@@ -960,7 +986,7 @@ static void struct_initializer1(struct Token **rest, struct Token *token,
 	}
 }
 
-// structIntializer2 = initializer ("," initializer)*
+// structIntializer2 = initializer ("," initializer)* ","?
 static void struct_initializer2(struct Token **rest, struct Token *token,
 				struct Initializer *init)
 {
@@ -968,7 +994,7 @@ static void struct_initializer2(struct Token **rest, struct Token *token,
 
 	// iterate all member
 	for (struct Member *member = init->type->member;
-	     member && !equal(token, "}"); member = member->next) {
+	     member && !is_end(token); member = member->next) {
 		if (!first)
 			token = skip(token, ",");
 		first = false;
@@ -986,6 +1012,8 @@ static void union_initializer(struct Token **rest, struct Token *token,
 	if (equal(token, "{")) {
 		// if {} exist
 		initializer2(&token, token->next, init->children[0]);
+		// ","?
+		consume(&token, token, ",");
 		*rest = skip(token, "}");
 	} else {
 		// {} not exist
