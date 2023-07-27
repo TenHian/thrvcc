@@ -499,6 +499,10 @@ int main()
 		       z;
 	       }));
 
+	// [111] support for flexible array members
+	printf("[111] support for flexible array members\n");
+	ASSERT(4, sizeof(struct { int x, y[]; }));
+
 	printf("OK\n");
 	return 0;
 }

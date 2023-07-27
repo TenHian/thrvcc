@@ -2235,6 +2235,12 @@ static void struct_members(struct Token **rest, struct Token *token,
 			cur = cur->next = member;
 		}
 	}
+
+	// parsing flexible array member with array size set to 0
+	if (cur != &head && cur->type->kind == TY_ARRAY &&
+	    cur->type->array_len < 0)
+		cur->type = array_of(cur->type->base, 0);
+
 	*rest = token->next;
 	type->member = head.next;
 }
