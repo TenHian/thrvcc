@@ -606,10 +606,12 @@ static void emit_data(struct Obj_Var *prog)
 		if (var->is_function)
 			continue;
 
-		println("\n  # DATA segment label");
-		println("  .data");
-		// determine if there is a value
+		println("\n  # GLOBAL segment %s", var->name);
+		println("  .globl %s", var->name);
+		// determine if there is a init value
 		if (var->init_data) {
+			println("\n  # DATA segment label");
+			println("  .data");
 			println("%s:", var->name);
 			struct Relocation *rel = var->rel;
 			int position = 0;
@@ -632,13 +634,17 @@ static void emit_data(struct Obj_Var *prog)
 						println("  .byte %d", c);
 				}
 			}
-		} else {
-			println("\n  # global varable %s", var->name);
-			println("  .global %s", var->name);
-			println("%s:", var->name);
-			println("  # zero fill %d bits", var->type->size);
-			println("  .zero %d", var->type->size);
+			continue;
 		}
+
+		// .bss segment does not allocate space for the data
+		// and only records the amount of space required for the data
+		println("  # .BSS, the global not initialized");
+		println("  .bss");
+		println("%s:", var->name);
+		println("  # zero fill %d bytes for global variable",
+			var->type->size);
+		println("  .zero %d", var->type->size);
 	}
 }
 
