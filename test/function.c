@@ -1,6 +1,6 @@
 #include "test.h"
 
-int ret3()
+int ret3(void)
 {
 	return 3;
 	return 5;
@@ -50,7 +50,7 @@ int sub_short(short a, short b, short c)
 
 int g1;
 
-int *g1_ptr()
+int *g1_ptr(void)
 {
 	return &g1;
 }
@@ -73,7 +73,7 @@ _Bool bool_fn_sub(_Bool x)
 	return x - 1;
 }
 
-static int static_fn()
+static int static_fn(void)
 {
 	return 3;
 }
@@ -142,6 +142,12 @@ int main()
 		       x[0] = 3;
 		       param_decay(x);
 	       }));
+
+	// [113] supports void as a formal parameter
+	printf("[113] supports void as a formal parameter\n");
+	ASSERT(3, ret3());
+	ASSERT(3, *g1_ptr());
+	ASSERT(3, static_fn());
 
 	printf("OK\n");
 	return 0;

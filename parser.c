@@ -101,7 +101,7 @@ static struct AstNode *CurSwitch;
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = "(" funcParams | "[" arrayDimensions | ε
 // arrayDimensions = constExpr? "]" typeSuffix
-// funcParams = (param ("," param)*)? ")"
+// funcParams = ("void" | param ("," param)*)? ")"
 // param = declspec declarator
 
 // compoundStmt = (typedef | declaration | stmt)* "}"
@@ -604,6 +604,12 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 static struct Type *func_params(struct Token **rest, struct Token *token,
 				struct Type *type)
 {
+	// "void"
+	if(equal(token, "void") && equal(token->next, ")")){
+		*rest = token->next->next;
+		return func_type(type);
+	}
+
 	struct Type head = {};
 	struct Type *cur = &head;
 
