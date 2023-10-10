@@ -600,6 +600,22 @@ static void assign_lvar_offsets(struct Obj_Var *prog)
 	}
 }
 
+// given a N, return the value log2N, else return -1
+static int log2i(int N)
+{
+	int log2n = 0;
+	if (N <= 0)
+		return -1;
+	while (N > 1) {
+		if (N & 1) {
+			return -1;
+		}
+		N >>= 1;
+		log2n++;
+	}
+	return log2n;
+}
+
 static void emit_data(struct Obj_Var *prog)
 {
 	for (struct Obj_Var *var = prog; var; var = var->next) {
@@ -608,6 +624,12 @@ static void emit_data(struct Obj_Var *prog)
 
 		println("\n  # GLOBAL segment %s", var->name);
 		println("  .globl %s", var->name);
+		println("  # Aligning global variables");
+		if (!var->type->align)
+			error_out("align can not be 0!");
+		else if (var->type->align == -1)
+			error_out("align can not be -1!");
+		println("  .align %d", log2i(var->type->align));
 		// determine if there is a init value
 		if (var->init_data) {
 			println("\n  # DATA segment label");
