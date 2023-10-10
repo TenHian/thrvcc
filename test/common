@@ -18,3 +18,8 @@ static int static_fn() { return 5; }
 // [115] Support for keyword 'extern'
 int ext1 = 5;
 int *ext2 = &ext1;
+
+// [116] process with 'extern' in block aka segment
+int ext3 = 7;
+int ext_fn1(int x) { return x; }
+int ext_fn2(int x) { return x; }

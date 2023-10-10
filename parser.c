@@ -222,6 +222,11 @@ static struct AstNode *postfix(struct Token **rest, struct Token *token);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
 static bool is_typename(struct Token *token);
 static struct Token *parse_typedef(struct Token *token, struct Type *base_ty);
+static bool is_function(struct Token *token);
+static struct Token *function(struct Token *token, struct Type *base_ty,
+			      struct VarAttr *attr);
+static struct Token *global_variable(struct Token *token, struct Type *base_ty,
+				     struct VarAttr *attr);
 
 // enter scope
 static void enter_scope(void)
@@ -1629,6 +1634,18 @@ static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 			// parse 'typedef' stmt
 			if (attr.is_typedef) {
 				token = parse_typedef(token, base_ty);
+				continue;
+			}
+
+			// parse function
+			if (is_function(token)) {
+				token = function(token, base_ty, &attr);
+				continue;
+			}
+
+			// parse extern global variable
+			if (attr.is_extern) {
+				token = global_variable(token, base_ty, &attr);
 				continue;
 			}
 
