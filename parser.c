@@ -37,6 +37,7 @@ struct Scope {
 struct VarAttr {
 	bool is_typedef; // Whether it is a type alias
 	bool is_static; // Whether it is in file scope
+	bool is_extern; // Whether it is extern variable
 };
 
 // variable initializer. this is a tree.
@@ -92,7 +93,7 @@ static struct AstNode *CurSwitch;
 // program = (typedef | functionDefinition | globalVariable)*
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
-//             | "typedef" | "static"
+//             | "typedef" | "static" | "extern"
 //             | structDecl | unionDecl | typedefName
 //             | enumSpecifier)+
 // enumSpecifier = ident? "{" enumList? "}"
@@ -424,6 +425,8 @@ static struct Obj_Var *new_gvar(char *name, struct Type *type)
 {
 	struct Obj_Var *var = new_var(name, type);
 	var->next = Globals;
+	// definitions exist
+	var->is_definition = true;
 	Globals = var;
 	return var;
 }
@@ -480,7 +483,7 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 }
 
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
-//             | "typedef" | "static"
+//             | "typedef" | "static" | "extern"
 //             | structDecl | unionDecl | typedefName
 //             | enumSpecifier)+
 // declarator specifier
@@ -505,21 +508,26 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 	// iterate through all Token of type name
 	while (is_typename(token)) {
 		// Handling the typedef keyword
-		if (equal(token, "typedef") || equal(token, "static")) {
+		if (equal(token, "typedef") || equal(token, "static") ||
+		    equal(token, "extern")) {
 			if (!attr)
 				error_token(
 					token,
 					"storage class specifier is not allowed in this context");
 			if (equal(token, "typedef"))
 				attr->is_typedef = true;
-			else
+			else if (equal(token, "static"))
 				attr->is_static = true;
+			else
+				attr->is_extern = true;
 
-			// "typedef" should not be used in conjunction with "static"
-			if (attr->is_typedef && attr->is_static)
+			// "typedef" should not be used in conjunction with \
+			// "static" or "extern"
+			if (attr->is_typedef &&
+			    (attr->is_static || attr->is_extern))
 				error_token(
 					token,
-					"'typedef' should not be used in conjunction whith 'static'");
+					"'typedef' should not be used in conjunction whith 'static'/'extern'");
 			token = token->next;
 			continue;
 		}
@@ -605,7 +613,7 @@ static struct Type *func_params(struct Token **rest, struct Token *token,
 				struct Type *type)
 {
 	// "void"
-	if(equal(token, "void") && equal(token->next, ")")){
+	if (equal(token, "void") && equal(token->next, ")")) {
 		*rest = token->next->next;
 		return func_type(type);
 	}
@@ -1358,7 +1366,7 @@ static bool is_typename(struct Token *token)
 {
 	static char *keyword[] = {
 		"void",	  "_Bool", "char",    "short", "int",	 "long",
-		"struct", "union", "typedef", "enum",  "static",
+		"struct", "union", "typedef", "enum",  "static", "extern",
 	};
 
 	for (int i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {
@@ -2713,7 +2721,8 @@ static struct Token *function(struct Token *token, struct Type *base_type,
 
 // construct globalVariable
 static struct Token *global_variable(struct Token *token,
-				     struct Type *base_type)
+				     struct Type *base_type,
+				     struct VarAttr *attr)
 {
 	bool first = true;
 
@@ -2725,6 +2734,8 @@ static struct Token *global_variable(struct Token *token,
 		struct Type *type = declarator(&token, token, base_type);
 		// global variable initialize
 		struct Obj_Var *var = new_gvar(get_ident(type->name), type);
+		// whether definitions exist
+		var->is_definition = !attr->is_extern;
 		if (equal(token, "="))
 			gvar_initializer(&token, token->next, var);
 	}
@@ -2764,7 +2775,7 @@ struct Obj_Var *parse(struct Token *token)
 			continue;
 		}
 		// global variable
-		token = global_variable(token, base_type);
+		token = global_variable(token, base_type, &attr);
 	}
 
 	return Globals;

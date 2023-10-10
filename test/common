@@ -14,3 +14,7 @@ void assert(long expected, long actual, char *code)
 
 // [74] Support for static func
 static int static_fn() { return 5; }
+
+// [115] Support for keyword 'extern'
+int ext1 = 5;
+int *ext2 = &ext1;

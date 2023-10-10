@@ -619,7 +619,8 @@ static int log2i(int N)
 static void emit_data(struct Obj_Var *prog)
 {
 	for (struct Obj_Var *var = prog; var; var = var->next) {
-		if (var->is_function)
+		// skip func or variable that no definition
+		if (var->is_function || !var->is_definition)
 			continue;
 
 		println("\n  # GLOBAL segment %s", var->name);
