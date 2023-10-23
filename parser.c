@@ -166,6 +166,7 @@ static struct AstNode *CurSwitch;
 //         | "sizeof" "(" typeName ")"
 //         | "sizeof" unary
 //         | "_Alignof" "(" typeName ")"
+//         | "_Alignof" unary
 //         | ident funcArgs?
 //         | str
 //         | num
@@ -2606,6 +2607,7 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 //         | "sizeof" "(" typeName ")"
 //         | "sizeof" unary
 //         | "_Alignof" "(" typeName ")"
+//         | "_Alignof" unary
 //         | ident funcArgs?
 //         | str
 //         | num
@@ -2642,11 +2644,18 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 	}
 	// "_Alignof" "(" typeName ")"
 	// read type's align
-	if (equal(token, "_Alignof")) {
-		token = skip(token->next, "(");
-		struct Type *type = type_name(&token, token);
+	if (equal(token, "_Alignof") && equal(token->next, "(") &&
+	    is_typename(token->next->next)) {
+		struct Type *type = type_name(&token, token->next->next);
 		*rest = skip(token, ")");
 		return new_num_astnode(type->align, token);
+	}
+	// "_Alignof" unary
+	// read variable's align
+	if (equal(token, "_Alignof")) {
+		struct AstNode *node = unary(rest, token->next);
+		add_type(node);
+		return new_num_astnode(node->type->align, token);
 	}
 	// ident args?
 	if (token->kind == TK_IDENT) {
