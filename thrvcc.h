@@ -136,6 +136,7 @@ struct Member {
 	struct Token *tok; // to improve error-reporting
 	struct Token *name;
 	int idx;
+	int align;
 	int offset;
 };
 
@@ -152,6 +153,7 @@ struct Obj_Var {
 	char *name; // local_var name
 	struct Type *type; // type
 	bool is_local; // is local_var? or global_var?
+	int align; // alignment
 
 	// local_var
 	int offset; // register fp offset

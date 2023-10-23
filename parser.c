@@ -38,6 +38,7 @@ struct VarAttr {
 	bool is_typedef; // Whether it is a type alias
 	bool is_static; // Whether it is in file scope
 	bool is_extern; // Whether it is extern variable
+	int align;
 };
 
 // variable initializer. this is a tree.
@@ -94,6 +95,7 @@ static struct AstNode *CurSwitch;
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "typedef" | "static" | "extern"
+//             | "_Alignas" ("(" typeName | constExpr ")")
 //             | structDecl | unionDecl | typedefName
 //             | enumSpecifier)+
 // enumSpecifier = ident? "{" enumList? "}"
@@ -163,6 +165,7 @@ static struct AstNode *CurSwitch;
 //         | "(" expr ")"
 //         | "sizeof" "(" typeName ")"
 //         | "sizeof" unary
+//         | "_Alignof" "(" typeName ")"
 //         | ident funcArgs?
 //         | str
 //         | num
@@ -174,6 +177,7 @@ static struct AstNode *CurSwitch;
 static bool is_typename(struct Token *token);
 static struct Type *declspec(struct Token **rest, struct Token *token,
 			     struct VarAttr *attr);
+static struct Type *type_name(struct Token **rest, struct Token *token);
 static struct Type *enum_specifier(struct Token **rest, struct Token *token);
 static struct Type *type_suffix(struct Token **rest, struct Token *token,
 				struct Type *type);
@@ -181,7 +185,7 @@ static struct Type *declarator(struct Token **rest, struct Token *token,
 			       struct Type *ty);
 static struct AstNode *compoundstmt(struct Token **rest, struct Token *token);
 static struct AstNode *declaration(struct Token **rest, struct Token *token,
-				   struct Type *base_ty);
+				   struct Type *base_ty, struct VarAttr *attr);
 static void initializer2(struct Token **rest, struct Token *token,
 			 struct Initializer *init);
 static struct Initializer *initializer(struct Token **rest, struct Token *token,
@@ -410,6 +414,8 @@ static struct Obj_Var *new_var(char *name, struct Type *type)
 	struct Obj_Var *var = calloc(1, sizeof(struct Obj_Var));
 	var->name = name;
 	var->type = type;
+	// set variable's default align as their type's align
+	var->align = type->align;
 	push_scope(name)->var = var;
 	return var;
 }
@@ -489,6 +495,7 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "typedef" | "static" | "extern"
+//             | "_Alignas" ("(" typeName | constExpr ")")
 //             | structDecl | unionDecl | typedefName
 //             | enumSpecifier)+
 // declarator specifier
@@ -534,6 +541,24 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 					token,
 					"'typedef' should not be used in conjunction whith 'static'/'extern'");
 			token = token->next;
+			continue;
+		}
+
+		// _Alignas "(" typeName | constExpr ")"
+		if (equal(token, "_Alignas")) {
+			// cant set align when var's causality not exist
+			if (!attr)
+				error_token(
+					token,
+					"_Alignas is not allowed in this context");
+			token = skip(token->next, "(");
+
+			// determine if it's a type name, or a constant expression
+			if (is_typename(token))
+				attr->align = type_name(&token, token)->align;
+			else
+				attr->align = const_expr(&token, token);
+			token = skip(token, ")");
 			continue;
 		}
 
@@ -848,7 +873,7 @@ static struct Type *enum_specifier(struct Token **rest, struct Token *token)
 // declaration = declspec (declarator ("=" initializer)?
 //                         ("," declarator ("=" initializer)?)*)? ";"
 static struct AstNode *declaration(struct Token **rest, struct Token *token,
-				   struct Type *base_ty)
+				   struct Type *base_ty, struct VarAttr *attr)
 {
 	struct AstNode head = {};
 	struct AstNode *cur = &head;
@@ -866,7 +891,11 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 		struct Type *type = declarator(&token, token, base_ty);
 		if (type->kind == TY_VOID)
 			error_token(token, "variable declared void");
+
 		struct Obj_Var *var = new_lvar(get_ident(type->name), type);
+		// read if variable's align exist
+		if (attr && attr->align)
+			var->align = attr->align;
 
 		// if not exist "=", its var declaration, no need to gen AstNode,
 		// already stored in Locals.
@@ -1370,8 +1399,9 @@ static void gvar_initializer(struct Token **rest, struct Token *token,
 static bool is_typename(struct Token *token)
 {
 	static char *keyword[] = {
-		"void",	  "_Bool", "char",    "short", "int",	 "long",
-		"struct", "union", "typedef", "enum",  "static", "extern",
+		"void",	  "_Bool",  "char",	"short",   "int",
+		"long",	  "struct", "union",	"typedef", "enum",
+		"static", "extern", "_Alignas",
 	};
 
 	for (int i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {
@@ -1505,7 +1535,7 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		if (is_typename(token)) {
 			// Initialize loop control variables
 			struct Type *base_ty = declspec(&token, token, NULL);
-			node->init = declaration(&token, token, base_ty);
+			node->init = declaration(&token, token, base_ty, NULL);
 		} else {
 			node->init = exprstmt(&token, token);
 		}
@@ -1650,7 +1680,7 @@ static struct AstNode *compoundstmt(struct Token **rest, struct Token *token)
 			}
 
 			// parse variable declaration statements
-			cur->next = declaration(&token, token, base_ty);
+			cur->next = declaration(&token, token, base_ty, &attr);
 		}
 		// stmt
 		else
@@ -2302,7 +2332,8 @@ static void struct_members(struct Token **rest, struct Token *token,
 
 	while (!equal(token, "}")) {
 		// declspec
-		struct Type *base_ty = declspec(&token, token, NULL);
+		struct VarAttr attr = {};
+		struct Type *base_ty = declspec(&token, token, &attr);
 		int first = true;
 
 		while (!consume(&token, token, ";")) {
@@ -2317,6 +2348,9 @@ static void struct_members(struct Token **rest, struct Token *token,
 			member->name = member->type->name;
 			// the index value corresponding to the member
 			member->idx = idx++;
+			// set align
+			member->align = attr.align ? attr.align :
+						     member->type->align;
 			cur = cur->next = member;
 		}
 	}
@@ -2390,12 +2424,12 @@ static struct Type *struct_decl(struct Token **rest, struct Token *token)
 	// caculate the offset of struct members
 	int offset = 0;
 	for (struct Member *mem = ty->member; mem; mem = mem->next) {
-		offset = align_to(offset, mem->type->align);
+		offset = align_to(offset, mem->align);
 		mem->offset = offset;
 		offset += mem->type->size;
 
-		if (ty->align < mem->type->align)
-			ty->align = mem->type->align;
+		if (ty->align < mem->align)
+			ty->align = mem->align;
 	}
 	ty->size = align_to(offset, ty->align);
 
@@ -2411,8 +2445,8 @@ static struct Type *union_decl(struct Token **rest, struct Token *token)
 	// union needs to be set to the maximum alignment and size,\
 	// and the variable offsets all default to 0
 	for (struct Member *mem = ty->member; mem; mem = mem->next) {
-		if (ty->align < mem->type->align)
-			ty->align = mem->type->align;
+		if (ty->align < mem->align)
+			ty->align = mem->align;
 		if (ty->size < mem->type->size)
 			ty->size = mem->type->size;
 	}
@@ -2571,6 +2605,7 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 //         | "(" expr ")"
 //         | "sizeof" "(" typeName ")"
 //         | "sizeof" unary
+//         | "_Alignof" "(" typeName ")"
 //         | ident funcArgs?
 //         | str
 //         | num
@@ -2604,6 +2639,14 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 		struct AstNode *node = unary(rest, token->next);
 		add_type(node);
 		return new_num_astnode(node->type->size, token);
+	}
+	// "_Alignof" "(" typeName ")"
+	// read type's align
+	if (equal(token, "_Alignof")) {
+		token = skip(token->next, "(");
+		struct Type *type = type_name(&token, token);
+		*rest = skip(token, ")");
+		return new_num_astnode(type->align, token);
 	}
 	// ident args?
 	if (token->kind == TK_IDENT) {
@@ -2753,6 +2796,10 @@ static struct Token *global_variable(struct Token *token,
 		struct Obj_Var *var = new_gvar(get_ident(type->name), type);
 		// whether definitions exist
 		var->is_definition = !attr->is_extern;
+		// if set, cover global variable's align
+		if (attr->align)
+			var->align = attr->align;
+
 		if (equal(token, "="))
 			gvar_initializer(&token, token->next, var);
 	}

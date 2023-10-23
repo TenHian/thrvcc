@@ -591,7 +591,7 @@ static void assign_lvar_offsets(struct Obj_Var *prog)
 			// alloc space to every var
 			offset += var->type->size;
 			// Aligning variables
-			offset = align_to(offset, var->type->align);
+			offset = align_to(offset, var->align);
 			// assign a offset to every var, aka address in stack
 			var->offset = -offset;
 		}
@@ -626,11 +626,11 @@ static void emit_data(struct Obj_Var *prog)
 		println("\n  # GLOBAL segment %s", var->name);
 		println("  .globl %s", var->name);
 		println("  # Aligning global variables");
-		if (!var->type->align)
+		if (!var->align)
 			error_out("align can not be 0!");
 		else if (var->type->align == -1)
 			error_out("align can not be -1!");
-		println("  .align %d", log2i(var->type->align));
+		println("  .align %d", log2i(var->align));
 		// determine if there is a init value
 		if (var->init_data) {
 			println("\n  # DATA segment label");
