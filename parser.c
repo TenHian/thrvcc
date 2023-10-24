@@ -438,6 +438,8 @@ static struct Obj_Var *new_gvar(char *name, struct Type *type)
 {
 	struct Obj_Var *var = new_var(name, type);
 	var->next = Globals;
+	// static
+	var->is_static = true;
 	// definitions exist
 	var->is_definition = true;
 	Globals = var;
@@ -2845,6 +2847,8 @@ static struct Token *global_variable(struct Token *token,
 		struct Obj_Var *var = new_gvar(get_ident(type->name), type);
 		// whether definitions exist
 		var->is_definition = !attr->is_extern;
+		// whether transfered is static
+		var->is_static = attr->is_static;
 		// if set, cover global variable's align
 		if (attr->align)
 			var->align = attr->align;

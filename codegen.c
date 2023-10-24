@@ -625,8 +625,14 @@ static void emit_data(struct Obj_Var *prog)
 		if (var->is_function || !var->is_definition)
 			continue;
 
-		println("\n  # GLOBAL segment %s", var->name);
-		println("  .globl %s", var->name);
+		if (var->is_static) {
+			println("\n  # static GLOBAL variable %s", var->name);
+			println("  .local %s", var->name);
+		} else {
+			println("\n  # GLOBAL variable %s", var->name);
+			println("  .globl %s", var->name);
+		}
+
 		println("  # Aligning global variables");
 		if (!var->align)
 			error_out("align can not be 0!");
