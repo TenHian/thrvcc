@@ -83,6 +83,13 @@ int param_decay(int x[])
 	return x[0];
 }
 
+int counter()
+{
+	static int i;
+	static int j = 1 + 1;
+	return i++ + j++;
+}
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -148,6 +155,12 @@ int main()
 	ASSERT(3, ret3());
 	ASSERT(3, *g1_ptr());
 	ASSERT(3, static_fn());
+
+	// [119] support for static local variable
+	printf("[119] support for static local variable\n");
+	ASSERT(2, counter());
+	ASSERT(4, counter());
+	ASSERT(6, counter());
 
 	printf("OK\n");
 	return 0;

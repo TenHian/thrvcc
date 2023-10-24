@@ -893,6 +893,15 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 		if (type->kind == TY_VOID)
 			error_token(token, "variable declared void");
 
+		if (attr && attr->is_static) {
+			// static local variable
+			struct Obj_Var *var = new_anon_gvar(type);
+			push_scope(get_ident(type->name))->var = var;
+			if (equal(token, "="))
+				gvar_initializer(&token, token->next, var);
+			continue;
+		}
+
 		struct Obj_Var *var = new_lvar(get_ident(type->name), type);
 		// read if variable's align exist
 		if (attr && attr->align)
