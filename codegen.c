@@ -560,7 +560,9 @@ static void gen_stmt(struct AstNode *node)
 		return;
 	case ND_RETURN:
 		println("# return statement");
-		gen_expr(node->lhs);
+		// if not none return stmt
+		if (node->lhs)
+			gen_expr(node->lhs);
 		// unconditional jump statement, jump to the .L.return segment
 		// 'j offset' is an alias instruction for 'jal x0, offset'
 		println("  # jump to .L.return.%s segment", CurFn->name);

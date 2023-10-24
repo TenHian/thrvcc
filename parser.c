@@ -123,7 +123,7 @@ static struct AstNode *CurSwitch;
 // structIntializer2 = initializer ("," initializer)* ","?
 
 // unionInitializer = "{" initializer "}"
-// stmt = "return" expr ";"
+// stmt = "return" expr? ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "switch" "(" expr ")" stmt
 //        | "case" constExpr ":" stmt
@@ -1425,7 +1425,7 @@ static bool is_typename(struct Token *token)
 }
 
 // parse stmt
-// stmt = "return" expr ";"
+// stmt = "return" expr? ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "switch" "(" expr ")" stmt
 //        | "case" constExpr ":" stmt
@@ -1443,6 +1443,11 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 	// "return" expr ";"
 	if (equal(token, "return")) {
 		struct AstNode *node = new_astnode(ND_RETURN, token);
+
+		// none return stmt
+		if (consume(rest, token->next, ";"))
+			return node;
+
 		struct AstNode *exp = expr(&token, token->next);
 		*rest = skip(token, ";");
 

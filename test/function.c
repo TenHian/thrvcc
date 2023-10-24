@@ -90,6 +90,11 @@ int counter()
 	return i++ + j++;
 }
 
+void ret_none()
+{
+	return;
+}
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -161,6 +166,10 @@ int main()
 	ASSERT(2, counter());
 	ASSERT(4, counter());
 	ASSERT(6, counter());
+
+	// [121] support for none return stmt
+	printf("[121] support for none return stmt\n");
+	ret_none();
 
 	printf("OK\n");
 	return 0;
