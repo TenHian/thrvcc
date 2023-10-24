@@ -160,7 +160,8 @@ static struct AstNode *CurSwitch;
 // structDecl = structUnionDecl
 // unionDecl = structUnionDecl
 // structUnionDecl = ident? ("{" structMembers)?
-// postfix = primary ("[" expr "]" | "." ident)* | "->" ident | "++" | "--")*
+// postfix = "(" typeName ")" "{" initializerList "}"
+//         | primary ("[" expr "]" | "." ident)* | "->" ident | "++" | "--")*
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
 //         | "sizeof" "(" typeName ")"
@@ -2278,6 +2279,11 @@ static struct AstNode *cast(struct Token **rest, struct Token *token)
 		struct Token *start = token;
 		struct Type *type = type_name(&token, token->next);
 		token = skip(token, ")");
+
+		// compound literals
+		if (equal(token, "{"))
+			return unary(rest, start);
+
 		// Parsing nested type conversions
 		struct AstNode *node = new_cast(cast(rest, token), type);
 		node->tok = start;
@@ -2501,9 +2507,29 @@ static struct AstNode *new_inc_dec(struct AstNode *node, struct Token *token,
 		node->type);
 }
 
-// postfix = primary ("[" expr "]" | "." ident)*
+// postfix = "(" typeName ")" "{" initializerList "}"
+//         | primary ("[" expr "]" | "." ident)* | "->" ident | "++" | "--")*
 static struct AstNode *postfix(struct Token **rest, struct Token *token)
 {
+	// "(" typeName ")" "{" initializerList "}"
+	if (equal(token, "(") && is_typename(token->next)) {
+		// compound literals
+		struct Token *start = token;
+		struct Type *type = type_name(&token, token->next);
+		token = skip(token, ")");
+
+		if (Scp->next == NULL) {
+			struct Obj_Var *var = new_anon_gvar(type);
+			gvar_initializer(rest, token, var);
+			return new_var_astnode(var, start);
+		}
+
+		struct Obj_Var *var = new_lvar("", type);
+		struct AstNode *lhs = lvar_initializer(rest, token, var);
+		struct AstNode *rhs = new_var_astnode(var, token);
+		return new_binary_tree_node(ND_COMMA, lhs, rhs, start);
+	}
+
 	// primary
 	struct AstNode *node = primary(&token, token);
 
