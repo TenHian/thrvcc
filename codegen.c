@@ -344,13 +344,24 @@ static void gen_expr(struct AstNode *node)
 			push();
 			args_count++;
 		}
+
 		// pop stack, a0->arg1, a1->arg2
 		for (int i = args_count - 1; i >= 0; i--)
 			pop(ArgsReg[i]);
 
 		// func call
-		println("  # func call %s", node->func_name);
-		println("  call %s", node->func_name);
+		if (StackDepth % 2 == 0) {
+			// even depth, sp already aligned with 16 bytes
+			println("  # func call %s", node->func_name);
+			println("  call %s", node->func_name);
+		} else {
+			// align sp to 16 byte boundaries
+			println("  # align sp to 16 byte boundaries, then call func %s",
+				node->func_name);
+			println("  addi sp, sp, -8");
+			println("  call %s", node->func_name);
+			println("  addi sp, sp, 8");
+		}
 		return;
 	}
 	default:
