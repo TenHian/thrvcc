@@ -520,6 +520,26 @@ static void gen_stmt(struct AstNode *node)
 		println("%s:", node->brk_label);
 		return;
 	}
+	case ND_DO: {
+		int C = count();
+		println("\n# ===== do while stmt %d ========", C);
+		println("\n# begin stmt %d", C);
+		println(".L.begin.%d:", C);
+
+		println("\n# then stmt %d", C);
+		gen_stmt(node->then_);
+
+		println("\n# conditional stmt %d", C);
+		println("%s:", node->ctue_label);
+		gen_expr(node->condition);
+
+		println("  # jump to loop%d's .L.begin.%d segment", C, C);
+		println("  bnez a0, .L.begin.%d", C);
+
+		println("\n# loop%d's %s segment's label", C, node->brk_label);
+		println("%s:", node->brk_label);
+		return;
+	}
 	case ND_SWITCH:
 		println("\n# ====== switch statement ======");
 		gen_expr(node->condition);

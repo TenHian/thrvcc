@@ -130,6 +130,7 @@ static struct AstNode *CurSwitch;
 //        | "default" ":" stmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
+//        | "do" stmt "while" "(" expr ")" ";"
 //        | "goto" ident ";"
 //        | "break" ";"
 //        | "continue" ";"
@@ -1434,6 +1435,7 @@ static bool is_typename(struct Token *token)
 //        | "default" ":" stmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
+//        | "do" stmt "while" "(" expr ")" ";"
 //        | "goto" ident ";"
 //        | "break" ";"
 //        | "continue" ";"
@@ -1616,6 +1618,36 @@ static struct AstNode *stmt(struct Token **rest, struct Token *token)
 		node->goto_next = Gotos;
 		Gotos = node;
 		*rest = skip(token->next->next, ";");
+		return node;
+	}
+
+	// "do" stmt "while" "(" expr ")" ";"
+	if (equal(token, "do")) {
+		struct AstNode *node = new_astnode(ND_DO, token);
+
+		// store break/continue label's name before this
+		char *brk = BrkLabel;
+		char *ctue = CtueLabel;
+		// set break/continue label's name
+		BrkLabel = node->brk_label = new_unique_name();
+		CtueLabel = node->ctue_label = new_unique_name();
+
+		// stmt
+		// 'do' code block stmt
+		node->then_ = stmt(&token, token->next);
+
+		// restore break/continue before
+		BrkLabel = brk;
+		CtueLabel = ctue;
+
+		// "while" "(" expr ")" ";"
+		token = skip(token, "while");
+		token = skip(token, "(");
+		// expr
+		// conditional expression that 'while' use
+		node->condition = expr(&token, token);
+		token = skip(token, ")");
+		*rest = skip(token, ";");
 		return node;
 	}
 

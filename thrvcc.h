@@ -66,6 +66,7 @@ enum NodeKind {
 	ND_RETURN, // return
 	ND_IF, // if
 	ND_FOR, // for or while
+	ND_DO, // do, used for do,while stmt
 	ND_SWITCH, // switch
 	ND_CASE, // case
 	ND_BLOCK, // code block

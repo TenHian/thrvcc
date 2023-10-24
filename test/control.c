@@ -399,6 +399,29 @@ int main()
 		       i;
 	       }));
 
+	// [123] support for 'do while' stmt
+	printf("[123] support for 'do while' stmt\n");
+	ASSERT(7, ({
+		       int i = 0;
+		       int j = 0;
+		       do {
+			       j++;
+		       } while (i++ < 6);
+		       j;
+	       }));
+	ASSERT(4, ({
+		       int i = 0;
+		       int j = 0;
+		       int k = 0;
+		       do {
+			       if (++j > 3)
+				       break;
+			       continue;
+			       k++;
+		       } while (1);
+		       j;
+	       }));
+
 	printf("OK\n");
 	return 0;
 }
