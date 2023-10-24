@@ -95,6 +95,11 @@ void ret_none()
 	return;
 }
 
+_Bool true_fn();
+_Bool false_fn();
+char char_fn();
+short short_fn();
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -170,6 +175,13 @@ int main()
 	// [121] support for none return stmt
 	printf("[121] support for none return stmt\n");
 	ret_none();
+
+	// [125] support for func return short
+	printf("[125] support for func return short\n");
+	ASSERT(1, true_fn());
+	ASSERT(0, false_fn());
+	ASSERT(3, char_fn());
+	ASSERT(5, short_fn());
 
 	printf("OK\n");
 	return 0;

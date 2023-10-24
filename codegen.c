@@ -362,6 +362,27 @@ static void gen_expr(struct AstNode *node)
 			println("  call %s", node->func_name);
 			println("  addi sp, sp, 8");
 		}
+
+		// clear irrelevant high bit data in registers
+		switch (node->type->kind) {
+		case TY_BOOL:
+			println("  # clear boolean high bit data");
+			println("  slli a0, a0, 63");
+			println("  srli a0, a0, 63");
+			return;
+		case TY_CHAR:
+			println("  # clear char high bit data");
+			println("  slli a0, a0, 56");
+			println("  srai a0, a0, 56");
+			return;
+		case TY_SHORT:
+			println("  # clear short high bit data");
+			println("  slli a0, a0, 48");
+			println("  srai a0, a0, 48");
+			return;
+		default:
+			break;
+		}
 		return;
 	}
 	default:
