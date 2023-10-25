@@ -96,6 +96,7 @@ static struct AstNode *CurSwitch;
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "typedef" | "static" | "extern"
 //             | "_Alignas" ("(" typeName | constExpr ")")
+//             | "signed"
 //             | structDecl | unionDecl | typedefName
 //             | enumSpecifier)+
 // enumSpecifier = ident? "{" enumList? "}"
@@ -501,6 +502,7 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "typedef" | "static" | "extern"
 //             | "_Alignas" ("(" typeName | constExpr ")")
+//             | "signed"
 //             | structDecl | unionDecl | typedefName
 //             | enumSpecifier)+
 // declarator specifier
@@ -517,6 +519,7 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 		INT = 1 << 8,
 		LONG = 1 << 10,
 		OTHER = 1 << 12,
+		SIGNED = 1 << 13,
 	};
 
 	struct Type *type = TyInt;
@@ -604,6 +607,8 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 			Counter += INT;
 		else if (equal(token, "long"))
 			Counter += LONG;
+		else if (equal(token, "signed"))
+			Counter |= SIGNED;
 		else
 			unreachable();
 
@@ -616,19 +621,28 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 			type = TyBool;
 			break;
 		case CHAR:
+		case SIGNED + CHAR:
 			type = TyChar;
 			break;
 		case SHORT:
 		case SHORT + INT:
+		case SIGNED + SHORT:
+		case SIGNED + SHORT + INT:
 			type = TyShort;
 			break;
 		case INT:
+		case SIGNED:
+		case SIGNED + INT:
 			type = TyInt;
 			break;
 		case LONG:
 		case LONG + INT:
 		case LONG + LONG:
 		case LONG + LONG + INT:
+		case SIGNED + LONG:
+		case SIGNED + LONG + INT:
+		case SIGNED + LONG + LONG:
+		case SIGNED + LONG + LONG + INT:
 			type = TyLong;
 			break;
 		default:
@@ -1431,7 +1445,7 @@ static bool is_typename(struct Token *token)
 	static char *keyword[] = {
 		"void",	  "_Bool",  "char",	"short",   "int",
 		"long",	  "struct", "union",	"typedef", "enum",
-		"static", "extern", "_Alignas",
+		"static", "extern", "_Alignas", "signed",
 	};
 
 	for (int i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {
