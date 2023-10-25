@@ -16,7 +16,7 @@ static int StackDepth;
 // the registers that used to store func args
 // used by func
 //         static void gen_expr(struct AstNode *node)
-static char *ArgsReg[] = { "a0", "a1", "a2", "a3", "a4", "a5" };
+static char *ArgsReg[] = { "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7" };
 // current func
 static struct Obj_Var *CurFn;
 
@@ -803,8 +803,22 @@ void emit_text(struct Obj_Var *prog)
 		println("  addi sp, sp, -%d", fn->stack_size);
 
 		int i_regs = 0;
+		// normal passing of formal parameter
 		for (struct Obj_Var *var = fn->params; var; var = var->next)
 			reg2stack(i_regs++, var->offset, var->type->size);
+
+		// variadic func
+		if (fn->va_area) {
+			// variadic func param stored in __va_area__, up to 7
+			int offset_ = fn->va_area->offset;
+			while (i_regs < 8) {
+				println("  # variadic, offset relative to %s is %d",
+					fn->va_area->name,
+					offset_ - fn->va_area->offset);
+				reg2stack(i_regs++, offset_, 8);
+				offset_ += 8;
+			}
+		}
 
 		// Iterate through statements list, gen code
 		println("# =====%s segment body=====", fn->name);

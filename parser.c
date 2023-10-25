@@ -2863,6 +2863,10 @@ static struct Token *function(struct Token *token, struct Type *base_type,
 	create_params_lvars(type->params);
 	fn->params = Locals;
 
+	// determine whether it is a variadic func
+	if (type->is_variadic)
+		fn->va_area = new_lvar("__va_area__", array_of(TyChar, 64));
+
 	token = skip(token, "{");
 	// func body store AST, Locals store var
 	fn->body = compoundstmt(&token, token);

@@ -173,6 +173,7 @@ struct Obj_Var {
 	struct Obj_Var *params; // parameters
 	struct AstNode *body; // func body
 	struct Obj_Var *locals; // local variables
+	struct Obj_Var *va_area; // variadic func param area
 	int stack_size;
 };
 
