@@ -127,6 +127,7 @@ struct Type {
 	// function type
 	struct Type *return_type; // function return type
 	struct Type *params; // parameters
+	bool is_variadic; // variadic func
 	struct Type *next; // next type
 };
 

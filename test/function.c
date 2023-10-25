@@ -100,6 +100,8 @@ _Bool false_fn();
 char char_fn();
 short short_fn();
 
+int add_all(int n, ...);
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -182,6 +184,17 @@ int main()
 	ASSERT(0, false_fn());
 	ASSERT(3, char_fn());
 	ASSERT(5, short_fn());
+
+	// [126] support for variadic function call
+	printf("[126] support for variadic function call\n");
+	ASSERT(6, add_all(3, 1, 2, 3));
+	ASSERT(5, add_all(4, 1, 2, 3, -1));
+
+	ASSERT(0, ({
+		       char buf[100];
+		       sprintf(buf, "%d %d %s", 1, 2, "foo");
+		       strcmp("1 2 foo", buf);
+	       }));
 
 	printf("OK\n");
 	return 0;

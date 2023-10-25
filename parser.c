@@ -104,7 +104,7 @@ static struct AstNode *CurSwitch;
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = "(" funcParams | "[" arrayDimensions | ε
 // arrayDimensions = constExpr? "]" typeSuffix
-// funcParams = ("void" | param ("," param)*)? ")"
+// funcParams = ("void" | param ("," param)* ("," "...")?)? ")"
 // param = declspec declarator
 
 // compoundStmt = (typedef | declaration | stmt)* "}"
@@ -642,7 +642,7 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 	return type;
 }
 
-// funcParams = (param ("," param)*)? ")"
+// funcParams = ("void" | param ("," param)* ("," "...")?)? ")"
 // param = declspec declarator
 static struct Type *func_params(struct Token **rest, struct Token *token,
 				struct Type *type)
@@ -655,12 +655,22 @@ static struct Type *func_params(struct Token **rest, struct Token *token,
 
 	struct Type head = {};
 	struct Type *cur = &head;
+	bool is_variadic = false;
 
 	while (!equal(token, ")")) {
 		// func_params = param ("," param)*
 		// param = declspec declarator
 		if (cur != &head)
 			token = skip(token, ",");
+
+		// ("," "...")?
+		if (equal(token, "...")) {
+			is_variadic = true;
+			token = token->next;
+			skip(token, ")");
+			break;
+		}
+
 		struct Type *type2 = declspec(&token, token, NULL);
 		type2 = declarator(&token, token, type2);
 
@@ -680,6 +690,8 @@ static struct Type *func_params(struct Token **rest, struct Token *token,
 	type = func_type(type);
 	// pass parameters
 	type->params = head.next;
+	// pass is_variadic parameters
+	type->is_variadic = is_variadic;
 	*rest = token->next;
 	return type;
 }
