@@ -113,6 +113,11 @@ char *fmt(char *buf, char *fmt, ...)
 	vsprintf(buf, fmt, ap);
 }
 
+int nullParam()
+{
+	return 123;
+}
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -220,6 +225,10 @@ int main()
 		       fmt(buf, "%d %d %s", 1, 2, "foo");
 		       strcmp("1 2 foo", buf);
 	       }));
+
+	// [128] set none-param func call as variadic func call
+	printf("[128] set none-param func call as variadic func call\n");
+	ASSERT(123, ({ nullParam(); }));
 
 	printf("OK\n");
 	return 0;

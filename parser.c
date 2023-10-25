@@ -686,6 +686,10 @@ static struct Type *func_params(struct Token **rest, struct Token *token,
 		cur = cur->next;
 	}
 
+	// set none-param func call as variadic func call
+	if (cur == &head)
+		is_variadic = true;
+
 	// wrap a func node
 	type = func_type(type);
 	// pass parameters
