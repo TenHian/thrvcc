@@ -317,6 +317,15 @@ static struct AstNode *new_long(int64_t val, struct Token *token)
 	return node;
 }
 
+// construct a new unsigned long type node
+static struct AstNode *new_ulong(long val, struct Token *token)
+{
+	struct AstNode *node = new_astnode(ND_NUM, token);
+	node->val = val;
+	node->type = TyULong;
+	return node;
+}
+
 static struct AstNode *new_var_astnode(struct Obj_Var *var, struct Token *token)
 {
 	struct AstNode *node = new_astnode(ND_VAR, token);
@@ -2297,7 +2306,7 @@ static struct AstNode *new_sub(struct AstNode *lhs, struct AstNode *rhs,
 	if (lhs->type->base && rhs->type->base) {
 		struct AstNode *node =
 			new_binary_tree_node(ND_SUB, lhs, rhs, token);
-		node->type = TyInt;
+		node->type = TyLong;
 		return new_binary_tree_node(
 			ND_DIV, node,
 			new_num_astnode(lhs->type->base->size, token), token);
@@ -2758,13 +2767,13 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 	    is_typename(token->next->next)) {
 		struct Type *type = type_name(&token, token->next->next);
 		*rest = skip(token, ")");
-		return new_num_astnode(type->size, start);
+		return new_ulong(type->size, start);
 	}
 	// "sizeof" unary
 	if (equal(token, "sizeof")) {
 		struct AstNode *node = unary(rest, token->next);
 		add_type(node);
-		return new_num_astnode(node->type->size, token);
+		return new_ulong(node->type->size, token);
 	}
 	// "_Alignof" "(" typeName ")"
 	// read type's align
@@ -2772,14 +2781,14 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 	    is_typename(token->next->next)) {
 		struct Type *type = type_name(&token, token->next->next);
 		*rest = skip(token, ")");
-		return new_num_astnode(type->align, token);
+		return new_ulong(type->align, token);
 	}
 	// "_Alignof" unary
 	// read variable's align
 	if (equal(token, "_Alignof")) {
 		struct AstNode *node = unary(rest, token->next);
 		add_type(node);
-		return new_num_astnode(node->type->align, token);
+		return new_ulong(node->type->align, token);
 	}
 	// ident args?
 	if (token->kind == TK_IDENT) {
