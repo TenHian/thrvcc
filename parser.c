@@ -1856,10 +1856,14 @@ static int64_t eval2(struct AstNode *node, char **label)
 	case ND_MUL:
 		return eval(node->lhs) * eval(node->rhs);
 	case ND_DIV:
+		if (node->type->is_unsigned)
+			return (uint64_t)eval(node->lhs) / eval(node->rhs);
 		return eval(node->lhs) / eval(node->rhs);
 	case ND_NEG:
 		return -eval(node->lhs);
 	case ND_MOD:
+		if (node->type->is_unsigned)
+			return (uint64_t)eval(node->lhs) % eval(node->rhs);
 		return eval(node->lhs) % eval(node->rhs);
 	case ND_BITAND:
 		return eval(node->lhs) & eval(node->rhs);
@@ -1870,14 +1874,20 @@ static int64_t eval2(struct AstNode *node, char **label)
 	case ND_SHL:
 		return eval(node->lhs) << eval(node->rhs);
 	case ND_SHR:
+		if (node->type->is_unsigned && node->type->size == 8)
+			return (uint64_t)eval(node->lhs) >> eval(node->rhs);
 		return eval(node->lhs) >> eval(node->rhs);
 	case ND_EQ:
 		return eval(node->lhs) == eval(node->rhs);
 	case ND_NE:
 		return eval(node->lhs) != eval(node->rhs);
 	case ND_LT:
+		if (node->lhs->type->is_unsigned)
+			return (uint64_t)eval(node->lhs) < eval(node->rhs);
 		return eval(node->lhs) < eval(node->rhs);
 	case ND_LE:
+		if (node->lhs->type->is_unsigned)
+			return (uint64_t)eval(node->lhs) <= eval(node->rhs);
 		return eval(node->lhs) <= eval(node->rhs);
 	case ND_COND:
 		return eval(node->condition) ? eval2(node->then_, label) :
@@ -1897,11 +1907,14 @@ static int64_t eval2(struct AstNode *node, char **label)
 		if (is_integer(node->type)) {
 			switch (node->type->size) {
 			case 1:
-				return (uint8_t)val;
+				return node->type->is_unsigned ? (uint8_t)val :
+								 (int8_t)val;
 			case 2:
-				return (uint16_t)val;
+				return node->type->is_unsigned ? (uint16_t)val :
+								 (int16_t)val;
 			case 4:
-				return (uint32_t)val;
+				return node->type->is_unsigned ? (uint32_t)val :
+								 (int32_t)val;
 			}
 		}
 		return val;

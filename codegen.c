@@ -78,7 +78,8 @@ static void gen_addr(struct AstNode *node)
 		if (node->var->is_local) { // offset fp
 			println("  # get varable %s's address in stack as %d(fp)",
 				node->var->name, node->var->offset);
-			println("  addi a0, fp, %d", node->var->offset);
+			println("  li t0, %d", node->var->offset);
+			println("  add a0, fp, t0");
 		} else {
 			println("  # get global var %s address",
 				node->var->name);
@@ -301,8 +302,11 @@ static void gen_expr(struct AstNode *node)
 			node->var->type->size, node->var->name,
 			node->var->offset);
 		// zeroize every byte occupied by a variable on the stack
-		for (int i = 0; i < node->var->type->size; i++)
-			println("  sb zero, %d(fp)", node->var->offset + i);
+		for (int i = 0; i < node->var->type->size; i++) {
+			println("  li t0, %d", node->var->offset + i);
+			println("  add t0, fp, t0");
+			println("  sb zero, 0(t0)");
+		}
 		return;
 	}
 	case ND_COND: {
@@ -803,18 +807,20 @@ static void reg2stack(int reg, int offset, int size)
 {
 	println("  # push register %s value into %d(fp) stack", ArgsReg[reg],
 		offset);
+	println("  li t0, %d", offset);
+	println("  add t0, fp, t0");
 	switch (size) {
 	case 1:
-		println("  sb %s, %d(fp)", ArgsReg[reg], offset);
+		println("  sb %s, 0(t0)", ArgsReg[reg]);
 		return;
 	case 2:
-		println("  sh %s, %d(fp)", ArgsReg[reg], offset);
+		println("  sh %s, 0(t0)", ArgsReg[reg]);
 		return;
 	case 4:
-		println("  sw %s, %d(fp)", ArgsReg[reg], offset);
+		println("  sw %s, 0(t0)", ArgsReg[reg]);
 		return;
 	case 8:
-		println("  sd %s, %d(fp)", ArgsReg[reg], offset);
+		println("  sd %s, 0(t0)", ArgsReg[reg]);
 		return;
 	}
 	unreachable();
@@ -867,7 +873,8 @@ void emit_text(struct Obj_Var *prog)
 
 		// offset is the stack usable size
 		println("  # Allocate stack space");
-		println("  addi sp, sp, -%d", fn->stack_size);
+		println("  li t0, -%d", fn->stack_size);
+		println("  add sp, sp, t0");
 
 		int i_regs = 0;
 		// normal passing of formal parameter
