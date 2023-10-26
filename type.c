@@ -122,9 +122,11 @@ void add_type(struct AstNode *node)
 		add_type(nd);
 
 	switch (node->kind) {
+	// set node type as int
 	case ND_NUM:
-		node->type = (node->val == (int)node->val) ? TyInt : TyLong;
+		node->type = TyInt;
 		return;
+	// set node type as left node's type
 	case ND_ADD:
 	case ND_SUB:
 	case ND_MUL:

@@ -101,7 +101,7 @@ struct Token {
 	int64_t val;
 	char *location;
 	int len;
-	struct Type *type;
+	struct Type *type; // used by TK_NUM or TK_STR
 	char *str;
 
 	int line_no; // line number

@@ -1,4 +1,6 @@
 #include "thrvcc.h"
+#include <stdbool.h>
+#include <strings.h>
 
 static char *CurLexStream; // reg the cur lexing stream
 static char *SourceFile; // current lexing file
@@ -287,6 +289,7 @@ static struct Token *read_char_literal(char *start)
 	// Constructs a NUM terminator with the value of C
 	struct Token *token = new_token(TK_NUM, start, end + 1);
 	token->val = c;
+	token->type = TyInt;
 	return token;
 }
 
@@ -315,12 +318,67 @@ static struct Token *read_int_literal(char *start)
 
 	// convert string to base binary number
 	int64_t val = strtoul(p, &p, base);
+	// read 'U' 'L' 'LL' suffix
+	bool L = false;
+	bool U = false;
+	// LLU
+	if (is_start_with(p, "LLU") || is_start_with(p, "LLu") ||
+	    is_start_with(p, "llU") || is_start_with(p, "llu") ||
+	    is_start_with(p, "ULL") || is_start_with(p, "Ull") ||
+	    is_start_with(p, "uLL") || is_start_with(p, "ull")) {
+		p += 3;
+		L = U = true;
+	} else if (!strncasecmp(p, "lu", 2) || !strncasecmp(p, "ul", 2)) {
+		// LU
+		p += 2;
+		L = U = true;
+	} else if (is_start_with(p, "LL") || is_start_with(p, "ll")) {
+		// LL
+		p += 2;
+		L = true;
+	} else if (*p == 'L' || *p == 'l') {
+		// L
+		p++;
+		L = true;
+	} else if (*p == 'U' || *p == 'u') {
+		// U
+		p++;
+		U = true;
+	}
+	// there shouldn't be any numbers left after the match is done
 	if (isalnum(*p))
 		error_at(p, "invalid digit");
-
+	// infer the type and use the type that holds the current value
+	struct Type *type;
+	if (base == 10) {
+		if (L && U)
+			type = TyULong;
+		else if (L)
+			type = TyLong;
+		else if (U)
+			type = (val >> 32) ? TyULong : TyUInt;
+		else
+			type = (val >> 31) ? TyLong : TyInt;
+	} else {
+		if (L && U)
+			type = TyULong;
+		else if (L)
+			type = (val >> 63) ? TyULong : TyLong;
+		else if (U)
+			type = (val >> 32) ? TyULong : TyUInt;
+		else if (val >> 63)
+			type = TyULong;
+		else if (val >> 32)
+			type = TyLong;
+		else if (val >> 31)
+			type = TyUInt;
+		else
+			type = TyInt;
+	}
 	// construct num terminator
 	struct Token *token = new_token(TK_NUM, start, p);
 	token->val = val;
+	token->type = type;
 	return token;
 }
 
