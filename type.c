@@ -3,9 +3,13 @@
 struct Type *TyVoid = &(struct Type){ TY_VOID, 1, 1 };
 struct Type *TyBool = &(struct Type){ TY_BOOL, 1, 1 };
 struct Type *TyChar = &(struct Type){ TY_CHAR, 1, 1 };
-struct Type *TyInt = &(struct Type){ TY_INT, 4, 4 };
-struct Type *TyLong = &(struct Type){ TY_LONG, 8, 8 };
+struct Type *TyUChar = &(struct Type){ TY_CHAR, 1, 1, true };
 struct Type *TyShort = &(struct Type){ TY_SHORT, 2, 2 };
+struct Type *TyUShort = &(struct Type){ TY_SHORT, 2, 2, true };
+struct Type *TyInt = &(struct Type){ TY_INT, 4, 4 };
+struct Type *TyUInt = &(struct Type){ TY_INT, 4, 4, true };
+struct Type *TyLong = &(struct Type){ TY_LONG, 8, 8 };
+struct Type *TyULong = &(struct Type){ TY_LONG, 8, 8, true };
 
 static struct Type *new_type(enum TypeKind ty_kind, int size, int align)
 {
@@ -73,9 +77,18 @@ static struct Type *get_common_type(struct Type *ty1, struct Type *ty2)
 {
 	if (ty1->base)
 		return pointer_to(ty1->base);
-	if (ty1->size == 8 || ty2->size == 8)
-		return TyLong;
-	return TyInt;
+	// if less than 4 bytes, its integer
+	if (ty1->size < 4)
+		ty1 = TyInt;
+	if (ty2->size < 4)
+		ty2 = TyInt;
+	// choose bigger one
+	if (ty1->size != ty2->size)
+		return (ty1->size < ty2->size) ? ty2 : ty1;
+	// priority return unsigned type(bigger)
+	if (ty2->is_unsigned)
+		return ty2;
+	return ty1;
 }
 
 // Perform regular arithmetic conversions

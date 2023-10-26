@@ -111,6 +111,7 @@ struct Type {
 	enum TypeKind kind; // kind
 	int size; // return value of sizeof()
 	int align; // alignment
+	bool is_unsigned;
 
 	// pointer
 	struct Type *base; // the kind pointed to
@@ -226,9 +227,13 @@ struct AstNode {
 #define unreachable() error_out("internal error at %s:%d", __FILE__, __LINE__)
 
 extern struct Type *TyChar;
-extern struct Type *TyInt;
-extern struct Type *TyLong;
+extern struct Type *TyUChar;
 extern struct Type *TyShort;
+extern struct Type *TyUShort;
+extern struct Type *TyInt;
+extern struct Type *TyUInt;
+extern struct Type *TyLong;
+extern struct Type *TyULong;
 extern struct Type *TyVoid;
 extern struct Type *TyBool;
 

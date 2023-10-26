@@ -118,6 +118,12 @@ int nullParam()
 	return 123;
 }
 
+unsigned char uchar_fn();
+unsigned short ushort_fn();
+
+signed char schar_fn();
+short sshort_fn();
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -229,6 +235,13 @@ int main()
 	// [128] set none-param func call as variadic func call
 	printf("[128] set none-param func call as variadic func call\n");
 	ASSERT(123, ({ nullParam(); }));
+
+	// [130] support for unsigned integer
+	printf("[130] support for unsigned integer\n");
+	ASSERT(251, uchar_fn());
+	ASSERT(65528, ushort_fn());
+	ASSERT(-5, schar_fn());
+	ASSERT(-8, sshort_fn());
 
 	printf("OK\n");
 	return 0;

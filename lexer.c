@@ -1,8 +1,4 @@
 #include "thrvcc.h"
-#include <ctype.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <strings.h>
 
 static char *CurLexStream; // reg the cur lexing stream
 static char *SourceFile; // current lexing file
@@ -159,11 +155,12 @@ static bool is_keyword(struct Token *token)
 {
 	// keyword list
 	static char *KeyWords[] = {
-		"return",   "if",	"else",	  "for",    "while",   "int",
-		"sizeof",   "char",	"struct", "union",  "long",    "short",
-		"void",	    "typedef",	"_Bool",  "enum",   "static",  "goto",
-		"break",    "continue", "switch", "case",   "default", "extern",
-		"_Alignof", "_Alignas", "do",	  "signed",
+		"return",   "if",     "else",	 "for",	     "while",
+		"int",	    "sizeof", "char",	 "struct",   "union",
+		"long",	    "short",  "void",	 "typedef",  "_Bool",
+		"enum",	    "static", "goto",	 "break",    "continue",
+		"switch",   "case",   "default", "extern",   "_Alignof",
+		"_Alignas", "do",     "signed",	 "unsigned",
 	};
 
 	for (int i = 0; i < sizeof(KeyWords) / sizeof(*KeyWords); ++i) {
@@ -317,7 +314,7 @@ static struct Token *read_int_literal(char *start)
 	}
 
 	// convert string to base binary number
-	long val = strtoul(p, &p, base);
+	int64_t val = strtoul(p, &p, base);
 	if (isalnum(*p))
 		error_at(p, "invalid digit");
 

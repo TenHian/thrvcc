@@ -111,13 +111,16 @@ static void load(struct Type *type)
 	    type->kind == TY_UNION)
 		return;
 
+	// add unsigned suffix u
+	char *suffix = type->is_unsigned ? "u" : "";
+
 	println("  # read the addr that sotred in a0, mov its value into a0");
 	if (type->size == 1)
-		println("  lb a0, 0(a0)");
+		println("  lb%s a0, 0(a0)", suffix);
 	else if (type->size == 2)
-		println("  lh a0, 0(a0)");
+		println("  lh%s a0, 0(a0)", suffix);
 	else if (type->size == 4)
-		println("  lw a0, 0(a0)");
+		println("  lw%s a0, 0(a0)", suffix);
 	else
 		println("  ld a0, 0(a0)");
 }
@@ -153,24 +156,28 @@ static void store(struct Type *type)
 }
 
 // type enum
-enum { I8, I16, I32, I64 };
+enum { I8, I16, I32, I64, U8, U16, U32, U64 };
 
 // Get the enumeration value corresponding to the type
 static int get_typeid(struct Type *type)
 {
 	switch (type->kind) {
 	case TY_CHAR:
-		return I8;
+		return type->is_unsigned ? U8 : I8;
 	case TY_SHORT:
-		return I16;
+		return type->is_unsigned ? U16 : I16;
 	case TY_INT:
-		return I32;
+		return type->is_unsigned ? U32 : I32;
+	case TY_LONG:
+		return type->is_unsigned ? U64 : I64;
 	default:
-		return I64;
+		return U64;
 	}
 }
 
 // Type Mapping Table
+// signed conversion
+//
 // The conversion of a 64-bit signed number to a 64-N-bit signed number \
 // is achieved by first shifting logically left by N bits \
 // and then arithmetically right by N bits
@@ -184,16 +191,39 @@ static char i64i32[] = "  # cast to i32 type\n"
 		       "  slli a0, a0, 32\n"
 		       "  srai a0, a0, 32";
 
+// Converting a 64-bit unsigned number to a 64-N-bit unsigned number \
+// is accomplished by first logically shifting N bits to the left \
+// and then logically shifting N bits to the right.
+static char i64u8[] = "  # cast to u8 type\n"
+		      "  slli a0, a0, 56\n"
+		      "  srli a0, a0, 56";
+static char i64u16[] = "  # cast to u16 type\n"
+		       "  slli a0, a0, 48\n"
+		       "  srli a0, a0, 48";
+static char i64u32[] = "  # cast to u32 type\n"
+		       "  slli a0, a0, 32\n"
+		       "  srli a0, a0, 32";
+
+// unsigned integer convert
+static char u32i64[] = "  # u32 cast to i64 type\n"
+		       "  slli a0, a0, 32\n"
+		       "  srli a0, a0, 32";
+
 // All type conversion table
 static char *CastTable[10][10] = {
 	// clang-format off
 	
 	// be mapped to
-	// {i8,  i16,    i32,    i64}
-	{NULL,   NULL,   NULL,   NULL}, // cast from i8
-	{i64i8,  NULL,   NULL,   NULL}, // cast from i16
-	{i64i8,  i64i16, NULL,   NULL}, // cast from i32
-	{i64i8,  i64i16, i64i32, NULL}, // cast from i64
+	// {i8,  i16,     i32,     i64,     u8,     u16,     u32,     u64}
+	{NULL,   NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL},   // convert from i8
+	{i64i8,  NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL},   // convert from i16
+	{i64i8,  i64i16,  NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL},   // convert from i32
+	{i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL},   // convert from i64
+	
+	{i64i8,  NULL,    NULL,    NULL,    NULL,   NULL,    NULL,    NULL},   // convert from u8
+	{i64i8,  i64i16,  NULL,    NULL,    i64u8,  NULL,    NULL,    NULL},   // convert from u16
+	{i64i8,  i64i16,  i64i32,  u32i64,  i64u8,  i64u16,  NULL,    u32i64}, // convert from u32
+	{i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL},   // convert from u64
 
 	// clang-format on
 };
@@ -372,13 +402,23 @@ static void gen_expr(struct AstNode *node)
 			return;
 		case TY_CHAR:
 			println("  # clear char high bit data");
-			println("  slli a0, a0, 56");
-			println("  srai a0, a0, 56");
+			if (node->type->is_unsigned) {
+				println("  slli a0, a0, 56");
+				println("  srli a0, a0, 56");
+			} else {
+				println("  slli a0, a0, 56");
+				println("  srai a0, a0, 56");
+			}
 			return;
 		case TY_SHORT:
 			println("  # clear short high bit data");
-			println("  slli a0, a0, 48");
-			println("  srai a0, a0, 48");
+			if (node->type->is_unsigned) {
+				println("  slli a0, a0, 48");
+				println("  srli a0, a0, 48");
+			} else {
+				println("  slli a0, a0, 48");
+				println("  srai a0, a0, 48");
+			}
 			return;
 		default:
 			break;
@@ -413,11 +453,17 @@ static void gen_expr(struct AstNode *node)
 		return;
 	case ND_DIV: // / a0=a0/a1
 		println("  # a0/a1, write the result into a0");
-		println("  div%s a0, a0, a1", suffix);
+		if (node->type->is_unsigned)
+			println("  divu%s a0, a0, a1", suffix);
+		else
+			println("  div%s a0, a0, a1", suffix);
 		return;
 	case ND_MOD:
 		println("  # a0 %% a1, write result in a0");
-		println("  rem%s a0, a0, a1", suffix);
+		if (node->type->is_unsigned)
+			println("  remu%s a0, a0, a1", suffix);
+		else
+			println("  rem%s a0, a0, a1", suffix);
 		return;
 	case ND_BITAND:
 		println("  # a0 & a1, write result in a0");
@@ -433,6 +479,18 @@ static void gen_expr(struct AstNode *node)
 		return;
 	case ND_EQ:
 	case ND_NE:
+		if (node->lhs->type->is_unsigned &&
+		    node->lhs->type->kind == TY_INT) {
+			println("  # left is u32, needs to be truncated");
+			println("slli a0, a0, 32");
+			println("srli a0, a0, 32");
+		};
+		if (node->rhs->type->is_unsigned &&
+		    node->rhs->type->kind == TY_INT) {
+			println("  # right is u32, needs to be truncated");
+			println("slli a0, a0, 32");
+			println("srli a0, a0, 32");
+		};
 		// a0=a0^a1
 		println("  # determine a0%sa1",
 			node->kind == ND_EQ ? "=" : "!=");
@@ -451,13 +509,19 @@ static void gen_expr(struct AstNode *node)
 		return;
 	case ND_LT:
 		println("  # determine a0<a1?");
-		println("  slt a0, a0, a1");
+		if (node->lhs->type->is_unsigned)
+			println("  sltu a0, a0, a1");
+		else
+			println("  slt a0, a0, a1");
 		return;
 	case ND_LE:
 		// a0<=a1 equal to
 		// a0=a1<a0, a0=a1^1
 		println("  #determine a0<=a1");
-		println("  slt a0, a1, a0");
+		if (node->lhs->type->is_unsigned)
+			println("  sltu a0, a1, a0");
+		else
+			println("  slt a0, a1, a0");
 		println("  xori a0, a0, 1");
 		return;
 	case ND_SHL:
@@ -466,7 +530,10 @@ static void gen_expr(struct AstNode *node)
 		return;
 	case ND_SHR:
 		println("  # a0 logical-right-shift a1 bits");
-		println("  sra%s a0, a0, a1", suffix);
+		if (node->type->is_unsigned)
+			println("  srl%s a0, a0, a1", suffix);
+		else
+			println("  sra%s a0, a0, a1", suffix);
 		return;
 	default:
 		break;

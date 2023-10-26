@@ -96,7 +96,7 @@ static struct AstNode *CurSwitch;
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "typedef" | "static" | "extern"
 //             | "_Alignas" ("(" typeName | constExpr ")")
-//             | "signed"
+//             | "signed" | "unsigned"
 //             | structDecl | unionDecl | typedefName
 //             | enumSpecifier)+
 // enumSpecifier = ident? "{" enumList? "}"
@@ -502,7 +502,7 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "typedef" | "static" | "extern"
 //             | "_Alignas" ("(" typeName | constExpr ")")
-//             | "signed"
+//             | "signed" | "unsigned"
 //             | structDecl | unionDecl | typedefName
 //             | enumSpecifier)+
 // declarator specifier
@@ -520,6 +520,7 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 		LONG = 1 << 10,
 		OTHER = 1 << 12,
 		SIGNED = 1 << 13,
+		UNSIGNED = 1 << 14,
 	};
 
 	struct Type *type = TyInt;
@@ -609,6 +610,8 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 			Counter += LONG;
 		else if (equal(token, "signed"))
 			Counter |= SIGNED;
+		else if (equal(token, "unsigned"))
+			Counter |= UNSIGNED;
 		else
 			unreachable();
 
@@ -620,9 +623,12 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 		case BOOL:
 			type = TyBool;
 			break;
-		case CHAR:
 		case SIGNED + CHAR:
 			type = TyChar;
+			break;
+		case CHAR:
+		case UNSIGNED + CHAR:
+			type = TyUChar;
 			break;
 		case SHORT:
 		case SHORT + INT:
@@ -630,10 +636,18 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 		case SIGNED + SHORT + INT:
 			type = TyShort;
 			break;
+		case UNSIGNED + SHORT:
+		case UNSIGNED + SHORT + INT:
+			type = TyUShort;
+			break;
 		case INT:
 		case SIGNED:
 		case SIGNED + INT:
 			type = TyInt;
+			break;
+		case UNSIGNED:
+		case UNSIGNED + INT:
+			type = TyUInt;
 			break;
 		case LONG:
 		case LONG + INT:
@@ -644,6 +658,12 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 		case SIGNED + LONG + LONG:
 		case SIGNED + LONG + LONG + INT:
 			type = TyLong;
+			break;
+		case UNSIGNED + LONG:
+		case UNSIGNED + LONG + INT:
+		case UNSIGNED + LONG + LONG:
+		case UNSIGNED + LONG + LONG + INT:
+			type = TyULong;
 			break;
 		default:
 			error_token(token, "invalid type");
@@ -1445,7 +1465,7 @@ static bool is_typename(struct Token *token)
 	static char *keyword[] = {
 		"void",	  "_Bool",  "char",	"short",   "int",
 		"long",	  "struct", "union",	"typedef", "enum",
-		"static", "extern", "_Alignas", "signed",
+		"static", "extern", "_Alignas", "signed",  "unsigned",
 	};
 
 	for (int i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {
