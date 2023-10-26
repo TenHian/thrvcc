@@ -39,6 +39,8 @@ struct Type *pointer_to(struct Type *base)
 {
 	struct Type *type = new_type(TY_PTR, 8, 8);
 	type->base = base;
+	// regard pointers as unsigned types
+	type->is_unsigned = true;
 	return type;
 }
 
