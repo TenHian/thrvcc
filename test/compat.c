@@ -5,6 +5,11 @@ _Noreturn noreturn_fn(int restrict x)
 	exit(0);
 }
 
+// [136] ignore static and const for array dimensions
+void funcy_type(int arg[restrict static 3])
+{
+}
+
 int main()
 {
 	// [135] ignore 'const' 'volatile' 'auto' 'register' 'restrict' '_Noreturn'

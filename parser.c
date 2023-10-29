@@ -107,7 +107,7 @@ static struct AstNode *CurSwitch;
 // declarator = pointers ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // pointers = ("*" ("const" | "volatile" | "restrict")*)*
 // typeSuffix = "(" funcParams | "[" arrayDimensions | ε
-// arrayDimensions = constExpr? "]" typeSuffix
+// arrayDimensions = ("static" | "restrict")* constExpr? "]" typeSuffix
 // funcParams = ("void" | param ("," param)* ("," "...")?)? ")"
 // param = declspec declarator
 
@@ -760,10 +760,14 @@ static struct Type *func_params(struct Token **rest, struct Token *token,
 }
 
 // Array Dimension
-// arrayDimensions = constExpr? "]" typeSuffix
+// arrayDimensions = ("static" | "restrict")* constExpr? "]" typeSuffix
 static struct Type *array_dimensions(struct Token **rest, struct Token *token,
 				     struct Type *type)
 {
+	// ("static" | "restrict")*
+	while (equal(token, "static") || equal(token, "restrict"))
+		token = token->next;
+
 	// ']' , "[]" for dimensionless array
 	if (equal(token, "]")) {
 		type = type_suffix(rest, token->next, type);
