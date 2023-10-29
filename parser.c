@@ -98,11 +98,14 @@ static struct AstNode *CurSwitch;
 //             | "_Alignas" ("(" typeName | constExpr ")")
 //             | "signed" | "unsigned"
 //             | structDecl | unionDecl | typedefName
-//             | enumSpecifier)+
+//             | enumSpecifier
+//             | "const" | "volatile" | "auto" | "register" | "restrict"
+//             | "__restrict" | "__restrict__" | "_Noreturn")+
 // enumSpecifier = ident? "{" enumList? "}"
 //                 | ident ("{" enumList? "}")?
 // enumList = ident ("=" constExpr)? ("," ident ("=" constExpr)?)* ","?
-// declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
+// declarator = pointers ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
+// pointers = ("*" ("const" | "volatile" | "restrict")*)*
 // typeSuffix = "(" funcParams | "[" arrayDimensions | ε
 // arrayDimensions = constExpr? "]" typeSuffix
 // funcParams = ("void" | param ("," param)* ("," "...")?)? ")"
@@ -174,7 +177,7 @@ static struct AstNode *CurSwitch;
 //         | str
 //         | num
 // typeName = declspec abstractDeclarator
-// abstractDeclarator = "*"* ("(" abstractDeclarator ")")? typeSuffix
+// abstractDeclarator = pointers ("(" abstractDeclarator ")")? typeSuffix
 
 // funcall = ident "(" (assign ("," assign)*)? ")"
 
@@ -513,7 +516,9 @@ static void push_tag_scope(struct Token *token, struct Type *type)
 //             | "_Alignas" ("(" typeName | constExpr ")")
 //             | "signed" | "unsigned"
 //             | structDecl | unionDecl | typedefName
-//             | enumSpecifier)+
+//             | enumSpecifier
+//             | "const" | "volatile" | "auto" | "register" | "restrict"
+//             | "__restrict" | "__restrict__" | "_Noreturn")+
 // declarator specifier
 static struct Type *declspec(struct Token **rest, struct Token *token,
 			     struct VarAttr *attr)
@@ -561,6 +566,17 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 			token = token->next;
 			continue;
 		}
+
+		// identify these keywords and ignore them
+		if (consume(&token, token, "const") ||
+		    consume(&token, token, "volatile") ||
+		    consume(&token, token, "auto") ||
+		    consume(&token, token, "register") ||
+		    consume(&token, token, "restrict") ||
+		    consume(&token, token, "__restrict") ||
+		    consume(&token, token, "__restrict__") ||
+		    consume(&token, token, "_Noreturn"))
+			continue;
 
 		// _Alignas "(" typeName | constExpr ")"
 		if (equal(token, "_Alignas")) {
@@ -777,14 +793,30 @@ static struct Type *type_suffix(struct Token **rest, struct Token *token,
 	return ty;
 }
 
+// pointers = ("*" ("const" | "volatile" | "restrict")*)*
+static struct Type *pointers(struct Token **rest, struct Token *token,
+			     struct Type *type)
+{
+	// "*"*
+	// construct all (multiple) pointers
+	while (consume(&token, token, "*")) {
+		type = pointer_to(type);
+		// identify these keywords and ignore them
+		while (equal(token, "const") || equal(token, "volatile") ||
+		       equal(token, "restrict") || equal(token, "__restrict") ||
+		       equal(token, "__restrict__"))
+			token = token->next;
+	}
+	*rest = token;
+	return type;
+}
+
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 static struct Type *declarator(struct Token **rest, struct Token *token,
 			       struct Type *type)
 {
-	// "*"*
-	// construct all (multiple) pointers
-	while (consume(&token, token, "*"))
-		type = pointer_to(type);
+	// pointers
+	type = pointers(&token, token, type);
 
 	// "(" declarator ")"
 	if (equal(token, "(")) {
@@ -812,15 +844,12 @@ static struct Type *declarator(struct Token **rest, struct Token *token,
 	return type;
 }
 
-// abstractDeclarator = "*"* ("(" abstractDeclarator ")")? typeSuffix
+// abstractDeclarator = pointers ("(" abstractDeclarator ")")? typeSuffix
 static struct Type *abstract_declarator(struct Token **rest,
 					struct Token *token, struct Type *type)
 {
-	// "*"*
-	while (equal(token, "*")) {
-		type = pointer_to(type);
-		token = token->next;
-	}
+	// pointers
+	type = pointers(&token, token, type);
 
 	// ("(" abstractDeclarator ")")?
 	if (equal(token, "(")) {
@@ -1472,9 +1501,12 @@ static void gvar_initializer(struct Token **rest, struct Token *token,
 static bool is_typename(struct Token *token)
 {
 	static char *keyword[] = {
-		"void",	  "_Bool",  "char",	"short",   "int",
-		"long",	  "struct", "union",	"typedef", "enum",
-		"static", "extern", "_Alignas", "signed",  "unsigned",
+		"void",	      "_Bool",	      "char",	   "short",
+		"int",	      "long",	      "struct",	   "union",
+		"typedef",    "enum",	      "static",	   "extern",
+		"_Alignas",   "signed",	      "unsigned",  "const",
+		"volatile",   "auto",	      "register",  "restrict",
+		"__restrict", "__restrict__", "_Noreturn",
 	};
 
 	for (int i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {

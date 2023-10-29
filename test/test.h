@@ -12,3 +12,6 @@ int memcmp(char *p, char *q, long n);
 
 // [126] support for variadic function call
 int sprintf(char *buf, char *fmt, ...);
+
+// [135] ignore 'const' 'volatile' 'auto' 'register' 'restrict' '_Noreturn'
+void exit(int n);

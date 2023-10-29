@@ -157,12 +157,16 @@ static bool is_keyword(struct Token *token)
 {
 	// keyword list
 	static char *KeyWords[] = {
-		"return",   "if",     "else",	 "for",	     "while",
-		"int",	    "sizeof", "char",	 "struct",   "union",
-		"long",	    "short",  "void",	 "typedef",  "_Bool",
-		"enum",	    "static", "goto",	 "break",    "continue",
-		"switch",   "case",   "default", "extern",   "_Alignof",
-		"_Alignas", "do",     "signed",	 "unsigned",
+		"return",    "if",	 "else",       "for",
+		"while",     "int",	 "sizeof",     "char",
+		"struct",    "union",	 "long",       "short",
+		"void",	     "typedef",	 "_Bool",      "enum",
+		"static",    "goto",	 "break",      "continue",
+		"switch",    "case",	 "default",    "extern",
+		"_Alignof",  "_Alignas", "do",	       "signed",
+		"unsigned",  "const",	 "volatile",   "auto",
+		"register",  "restrict", "__restrict", "__restrict__",
+		"_Noreturn",
 	};
 
 	for (int i = 0; i < sizeof(KeyWords) / sizeof(*KeyWords); ++i) {
