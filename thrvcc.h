@@ -117,6 +117,7 @@ struct Type {
 	struct Type *base; // the kind pointed to
 	// type name, like variable name, function name.
 	struct Token *name; // type name
+	struct Token *name_pos; // name position
 
 	// array
 	int array_len; // len of array, array items count
@@ -155,6 +156,7 @@ struct Obj_Var {
 	struct Obj_Var *next; // point to next local_var
 	char *name; // local_var name
 	struct Type *type; // type
+	struct Token *token; // terminator
 	bool is_local; // is local_var? or global_var?
 	int align; // alignment
 

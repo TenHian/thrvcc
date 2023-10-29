@@ -837,14 +837,23 @@ static struct Type *declarator(struct Token **rest, struct Token *token,
 		return declarator(&token, start->next, type);
 	}
 
-	if (token->kind != TK_IDENT)
-		error_token(token, "expected a variable name");
+	// default name is NULL
+	struct Token *name = NULL;
+	// name_pos point to block after type name
+	struct Token *name_pos = token;
+
+	// if name exist, assign
+	if (token->kind == TK_IDENT) {
+		name = token;
+		token = token->next;
+	}
 
 	// type_suffix
-	type = type_suffix(rest, token->next, type);
+	type = type_suffix(rest, token, type);
 	// ident
 	// variable name or func name
-	type->name = token;
+	type->name = name;
+	type->name_pos = name_pos;
 	return type;
 }
 
@@ -988,6 +997,8 @@ static struct AstNode *declaration(struct Token **rest, struct Token *token,
 		struct Type *type = declarator(&token, token, base_ty);
 		if (type->kind == TY_VOID)
 			error_token(token, "variable declared void");
+		if (!type->name)
+			error_token(type->name_pos, "variable name omitted");
 
 		if (attr && attr->is_static) {
 			// static local variable
@@ -2894,6 +2905,8 @@ static struct Token *parse_typedef(struct Token *token, struct Type *base_ty)
 		first = false;
 
 		struct Type *type = declarator(&token, token, base_ty);
+		if (!type->name)
+			error_token(type->name_pos, "typedef name omitted");
 		// The variable name of the type alias is stored in the variable scope, \
 		// and the type is set
 		push_scope(get_ident(type->name))->_typedef = type;
@@ -2910,6 +2923,8 @@ static void create_params_lvars(struct Type *param)
 		// then add all the subsequent ones to the top one by one,
 		// keeping the same order
 		create_params_lvars(param->next);
+		if (!param->name)
+			error_token(param->name_pos, "parameter name omitted");
 		// add into Locals
 		new_lvar(get_ident(param->name), param);
 	}
@@ -2942,6 +2957,8 @@ static struct Token *function(struct Token *token, struct Type *base_type,
 			      struct VarAttr *attr)
 {
 	struct Type *type = declarator(&token, token, base_type);
+	if (!type->name)
+		error_token(type->name_pos, "function name omitted");
 
 	struct Obj_Var *fn = new_gvar(get_ident(type->name), type);
 	fn->is_function = true;
@@ -2989,6 +3006,8 @@ static struct Token *global_variable(struct Token *token,
 		first = false;
 
 		struct Type *type = declarator(&token, token, base_type);
+		if (!type->name)
+			error_token(type->name_pos, "variable name omitted");
 		// global variable initialize
 		struct Obj_Var *var = new_gvar(get_ident(type->name), type);
 		// whether definitions exist
