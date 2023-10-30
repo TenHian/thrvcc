@@ -2883,7 +2883,15 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 	}
 	// num
 	if (token->kind == TK_NUM) {
-		struct AstNode *node = new_num_astnode(token->val, token);
+		struct AstNode *node;
+		if (is_float(token->type)) {
+			// float node
+			node = new_astnode(ND_NUM, token);
+			node->fval = token->fval;
+		} else {
+			// integer node
+			node = new_num_astnode(token->val, token);
+		}
 		// set type as terminator type
 		node->type = token->type;
 		*rest = token->next;

@@ -1,5 +1,8 @@
 #include "thrvcc.h"
+#include <ctype.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 
 static char *CurLexStream; // reg the cur lexing stream
@@ -349,9 +352,7 @@ static struct Token *read_int_literal(char *start)
 		p++;
 		U = true;
 	}
-	// there shouldn't be any numbers left after the match is done
-	if (isalnum(*p))
-		error_at(p, "invalid digit");
+
 	// infer the type and use the type that holds the current value
 	struct Type *type;
 	if (base == 10) {
@@ -382,6 +383,37 @@ static struct Token *read_int_literal(char *start)
 	// construct num terminator
 	struct Token *token = new_token(TK_NUM, start, p);
 	token->val = val;
+	token->type = type;
+	return token;
+}
+
+// read num
+static struct Token *read_number(char *start)
+{
+	// attempt to parse integer integral constant
+	struct Token *token = read_int_literal(start);
+	// no suffix 'e' or 'f', integer
+	if (!strchr(".eEfF", start[token->len]))
+		return token;
+
+	// if not integer, must be float
+	char *end;
+	double val = strtod(start, &end);
+
+	// handle float suffix
+	struct Type *type;
+	if (*end == 'f' || *end == 'F') {
+		type = TyFloat;
+		end++;
+	} else if (*end == 'l' || *end == 'L') {
+		type = TyDouble;
+		end++;
+	} else {
+		type = TyDouble;
+	}
+	// construct float terminator
+	token = new_token(TK_NUM, start, end);
+	token->fval = val;
 	token->type = type;
 	return token;
 }
@@ -444,10 +476,11 @@ struct Token *lexer(char *filename, char *formula)
 			continue;
 		}
 
-		// parse digit
-		if (isdigit(*formula)) {
+		// parse digit (integer or float)
+		if (isdigit(*formula) ||
+		    (*formula == '.' && isdigit(formula[1]))) {
 			// read number literal
-			cur->next = read_int_literal(formula);
+			cur->next = read_number(formula);
 			// pointer forward
 			cur = cur->next;
 			formula += cur->len;

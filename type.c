@@ -10,6 +10,8 @@ struct Type *TyInt = &(struct Type){ TY_INT, 4, 4 };
 struct Type *TyUInt = &(struct Type){ TY_INT, 4, 4, true };
 struct Type *TyLong = &(struct Type){ TY_LONG, 8, 8 };
 struct Type *TyULong = &(struct Type){ TY_LONG, 8, 8, true };
+struct Type *TyFloat = &(struct Type){ TY_FLOAT, 4, 4 };
+struct Type *TyDouble = &(struct Type){ TY_DOUBLE, 8, 8 };
 
 static struct Type *new_type(enum TypeKind ty_kind, int size, int align)
 {
@@ -25,6 +27,11 @@ bool is_integer(struct Type *type)
 	return type->kind == TY_BOOL || type->kind == TY_CHAR ||
 	       type->kind == TY_SHORT || type->kind == TY_INT ||
 	       type->kind == TY_LONG || type->kind == TY_ENUM;
+}
+
+bool is_float(struct Type *type)
+{
+	return type->kind == TY_FLOAT || type->kind == TY_DOUBLE;
 }
 
 // copy type

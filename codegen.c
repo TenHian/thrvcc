@@ -1,6 +1,7 @@
 #include "thrvcc.h"
 #include <ctype.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -258,10 +259,34 @@ static void gen_expr(struct AstNode *node)
 	switch (node->kind) {
 	case ND_NULL_EXPR:
 		return;
-	case ND_NUM:
-		println("  # load %d into a0", node->val);
-		println("  li a0, %ld", node->val);
-		return;
+	case ND_NUM: {
+		union {
+			float f32;
+			double f64;
+			uint32_t u32;
+			uint64_t u64;
+		} num;
+		switch (node->type->kind) {
+		case TY_FLOAT:
+			num.f32 = node->fval;
+			println("  # convert a0 to fa0 with a float value of %f",
+				node->fval);
+			println("  li a0, %u  # float %f", num.u32, node->fval);
+			println("  fmv.w.x fa0, a0");
+			return;
+		case TY_DOUBLE:
+			println("  # convert a0 to fa0 with a float value of %f",
+				node->fval);
+			println("  li a0, %lu  # double %f", num.u64,
+				node->fval);
+			println("  fmv.d.x fa0, a0");
+			return;
+		default:
+			println("  # load %ld into a0", node->val);
+			println("  li a0, %ld", node->val);
+			return;
+		}
+	}
 	case ND_NEG:
 		gen_expr(node->lhs);
 		println("  # reverse the value of a0");

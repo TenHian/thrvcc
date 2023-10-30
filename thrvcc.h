@@ -87,6 +87,8 @@ enum TypeKind {
 	TY_SHORT, // short integer
 	TY_INT, // integer
 	TY_LONG, // long integer
+	TY_FLOAT,
+	TY_DOUBLE,
 	TY_ENUM, // enum
 	TY_PTR, // pointer
 	TY_FUNC, // function
@@ -99,6 +101,7 @@ struct Token {
 	enum TokenKind kind;
 	struct Token *next;
 	int64_t val;
+	double fval; // float
 	char *location;
 	int len;
 	struct Type *type; // used by TK_NUM or TK_STR
@@ -223,6 +226,7 @@ struct AstNode {
 
 	struct Obj_Var *var; // string that store var type
 	int64_t val;
+	double fval;
 };
 
 // when error at thrvcc source code, print file_name and line_no
@@ -236,6 +240,8 @@ extern struct Type *TyInt;
 extern struct Type *TyUInt;
 extern struct Type *TyLong;
 extern struct Type *TyULong;
+extern struct Type *TyFloat;
+extern struct Type *TyDouble;
 extern struct Type *TyVoid;
 extern struct Type *TyBool;
 
@@ -250,6 +256,7 @@ bool equal(struct Token *token, char *str);
 struct Token *skip(struct Token *token, char *str);
 bool consume(struct Token **rest, struct Token *token, char *str);
 bool is_integer(struct Type *type);
+bool is_float(struct Type *type);
 // copy type
 struct Type *copy_type(struct Type *type);
 struct Type *pointer_to(struct Type *base);
