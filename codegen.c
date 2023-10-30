@@ -109,9 +109,22 @@ static void gen_addr(struct AstNode *node)
 // load the value that a0 point to
 static void load(struct Type *type)
 {
-	if (type->kind == TY_ARRAY || type->kind == TY_STRUCT ||
-	    type->kind == TY_UNION)
+	switch (type->kind) {
+	case TY_ARRAY:
+	case TY_STRUCT:
+	case TY_UNION:
 		return;
+	case TY_FLOAT:
+		println("  # access the address stored in a0, and the obtained value is stored in fa0");
+		println("  flw fa0, 0(a0)");
+		return;
+	case TY_DOUBLE:
+		println("  # access the address stored in a0, and the obtained value is stored in fa0");
+		println("  fld fa0, 0(a0)");
+		return;
+	default:
+		break;
+	}
 
 	// add unsigned suffix u
 	char *suffix = type->is_unsigned ? "u" : "";
@@ -132,7 +145,9 @@ static void store(struct Type *type)
 {
 	pop("a1");
 
-	if (type->kind == TY_STRUCT || type->kind == TY_UNION) {
+	switch (type->kind) {
+	case TY_STRUCT:
+	case TY_UNION:
 		println("  # assign for %s",
 			type->kind == TY_STRUCT ? "struct" : "union");
 		for (int i = 0; i < type->size; ++i) {
@@ -144,6 +159,16 @@ static void store(struct Type *type)
 			println("  sb t1, 0(t0)");
 		}
 		return;
+	case TY_FLOAT:
+		println("  # write the value of fa0 into the address that a1 stored");
+		println("  fsw fa0, 0(a1)");
+		return;
+	case TY_DOUBLE:
+		println("  # write the value of fa0 into the address that a1 stored");
+		println("  fsd fa0, 0(a1)");
+		return;
+	default:
+		break;
 	}
 
 	println("  # write the value that stored in a0 into the address stored in a1");
@@ -158,7 +183,7 @@ static void store(struct Type *type)
 }
 
 // type enum
-enum { I8, I16, I32, I64, U8, U16, U32, U64 };
+enum { I8, I16, I32, I64, U8, U16, U32, U64, F32, F64 };
 
 // Get the enumeration value corresponding to the type
 static int get_typeid(struct Type *type)
@@ -172,6 +197,10 @@ static int get_typeid(struct Type *type)
 		return type->is_unsigned ? U32 : I32;
 	case TY_LONG:
 		return type->is_unsigned ? U64 : I64;
+	case TY_FLOAT:
+		return F32;
+	case TY_DOUBLE:
+		return F64;
 	default:
 		return U64;
 	}
@@ -179,7 +208,10 @@ static int get_typeid(struct Type *type)
 
 // Type Mapping Table
 // signed conversion
-//
+static char i32f32[] = "  # cast i32 to f32\n"
+		       "  fcvt.s.w fa0, a0";
+static char i32f64[] = "  # cast i32 to f64\n"
+		       "  fcvt.d.w fa0, a0";
 // The conversion of a 64-bit signed number to a 64-N-bit signed number \
 // is achieved by first shifting logically left by N bits \
 // and then arithmetically right by N bits
@@ -206,26 +238,117 @@ static char i64u32[] = "  # cast to u32 type\n"
 		       "  slli a0, a0, 32\n"
 		       "  srli a0, a0, 32";
 
+// signed integer convert to float
+static char i64f32[] = "  # cast i64 to f32\n"
+		       "  fcvt.s.l fa0, a0";
+static char i64f64[] = "  # cast i64 to f64\n"
+		       "  fcvt.d.l fa0, a0";
+
 // unsigned integer convert
+static char u32f32[] = "  # cast u32 to f32\n"
+		       "  fcvt.s.wu fa0, a0";
+static char u32f64[] = "  # cast u32 to f64\n"
+		       "  fcvt.d.wu fa0, a0";
 static char u32i64[] = "  # u32 cast to i64 type\n"
 		       "  slli a0, a0, 32\n"
 		       "  srli a0, a0, 32";
 
+// unsigned integer convert to float
+static char u64f32[] = "  # cast u64 to f32\n"
+		       "  fcvt.s.lu fa0, a0";
+static char u64f64[] = "  # cast u64 to f64\n"
+		       "  fcvt.d.lu fa0, a0";
+
+// float convert to integer
+static char f32i8[] = "  # cast f32 to i8\n"
+		      "  fcvt.w.s a0, fa0, rtz\n"
+		      "  slli a0, a0, 56\n"
+		      "  srai a0, a0, 56";
+static char f32i16[] = "  # cast f32 to i16\n"
+		       "  fcvt.w.s a0, fa0, rtz\n"
+		       "  slli a0, a0, 48\n"
+		       "  srai a0, a0, 48";
+static char f32i32[] = "  # cast f32 to i32\n"
+		       "  fcvt.w.s a0, fa0, rtz\n"
+		       "  slli a0, a0, 32\n"
+		       "  srai a0, a0, 32";
+static char f32i64[] = "  # cast f32 to i64\n"
+		       "  fcvt.l.s a0, fa0, rtz";
+
+// float convert to unsigned float
+static char f32u8[] = "  # cast f32 to u8\n"
+		      "  fcvt.wu.s a0, fa0, rtz\n"
+		      "  slli a0, a0, 56\n"
+		      "  srli a0, a0, 56";
+static char f32u16[] = "  # cast f32 to u16\n"
+		       "  fcvt.wu.s a0, fa0, rtz\n"
+		       "  slli a0, a0, 48\n"
+		       "  srli a0, a0, 48\n";
+static char f32u32[] = "  # cast f32 to u32\n"
+		       "  fcvt.wu.s a0, fa0, rtz\n"
+		       "  slli a0, a0, 32\n"
+		       "  srai a0, a0, 32";
+static char f32u64[] = "  # cast f32 to u64\n"
+		       "  fcvt.lu.s a0, fa0, rtz";
+
+// float convert to double
+static char f32f64[] = "  # cast f32 to f64\n"
+		       "  fcvt.d.s fa0, fa0";
+
+// double convert to integer
+static char f64i8[] = "  # cast f64 to i8\n"
+		      "  fcvt.w.d a0, fa0, rtz\n"
+		      "  slli a0, a0, 56\n"
+		      "  srai a0, a0, 56";
+static char f64i16[] = "  # cast f64 to i16\n"
+		       "  fcvt.w.d a0, fa0, rtz\n"
+		       "  slli a0, a0, 48\n"
+		       "  srai a0, a0, 48";
+static char f64i32[] = "  # cast f64 to i32\n"
+		       "  fcvt.w.d a0, fa0, rtz\n"
+		       "  slli a0, a0, 32\n"
+		       "  srai a0, a0, 32";
+static char f64i64[] = "  # cast f64 to i64\n"
+		       "  fcvt.l.d a0, fa0, rtz";
+
+// double convert to unsigned integer
+static char f64u8[] = "  # cast f64 to u8\n"
+		      "  fcvt.wu.d a0, fa0, rtz\n"
+		      "  slli a0, a0, 56\n"
+		      "  srli a0, a0, 56";
+static char f64u16[] = "  # cast f64 to u16\n"
+		       "  fcvt.wu.d a0, fa0, rtz\n"
+		       "  slli a0, a0, 48\n"
+		       "  srli a0, a0, 48";
+static char f64u32[] = "  # cast f64 to u32\n"
+		       "  fcvt.wu.d a0, fa0, rtz\n"
+		       "  slli a0, a0, 32\n"
+		       "  srai a0, a0, 32";
+static char f64u64[] = "  # cast f64 to u64\n"
+		       "  fcvt.lu.d a0, fa0, rtz";
+
+// double convert to float
+static char f64f32[] = "  # cast f64 to f32\n"
+		       "  fcvt.s.d fa0, fa0";
+
 // All type conversion table
-static char *CastTable[10][10] = {
+static char *CastTable[11][11] = {
 	// clang-format off
 	
 	// be mapped to
-	// {i8,  i16,     i32,     i64,     u8,     u16,     u32,     u64}
-	{NULL,   NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL},   // convert from i8
-	{i64i8,  NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL},   // convert from i16
-	{i64i8,  i64i16,  NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL},   // convert from i32
-	{i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL},   // convert from i64
-	
-	{i64i8,  NULL,    NULL,    NULL,    NULL,   NULL,    NULL,    NULL},   // convert from u8
-	{i64i8,  i64i16,  NULL,    NULL,    i64u8,  NULL,    NULL,    NULL},   // convert from u16
-	{i64i8,  i64i16,  i64i32,  u32i64,  i64u8,  i64u16,  NULL,    u32i64}, // convert from u32
-	{i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL},   // convert from u64
+  	// {i8,  i16,     i32,     i64,     u8,     u16,     u32,     u64,     f32,     f64}
+  	{NULL,   NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64}, // convert from i8
+  	{i64i8,  NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64}, // convert from i16
+  	{i64i8,  i64i16,  NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64}, // convert from i32
+  	{i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    i64f32,  i64f64}, // convert from i64
+
+  	{i64i8,  NULL,    NULL,    NULL,    NULL,   NULL,    NULL,    NULL,    u32f32,  u32f64}, // convert from u8
+  	{i64i8,  i64i16,  NULL,    NULL,    i64u8,  NULL,    NULL,    NULL,    u32f32,  u32f64}, // convert from u16
+  	{i64i8,  i64i16,  i64i32,  u32i64,  i64u8,  i64u16,  NULL,    u32i64,  u32f32,  u32f64}, // convert from u32
+  	{i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    u64f32,  u64f64}, // convert from u64
+
+  	{f32i8,  f32i16,  f32i32,  f32i64,  f32u8,  f32u16,  f32u32,  f32u64,  NULL,    f32f64}, // convert from f32
+  	{f64i8,  f64i16,  f64i32,  f64i64,  f64u8,  f64u16,  f64u32,  f64u64,  f64f32,  NULL},   // convert from f64
 
 	// clang-format on
 };
@@ -275,6 +398,7 @@ static void gen_expr(struct AstNode *node)
 			println("  fmv.w.x fa0, a0");
 			return;
 		case TY_DOUBLE:
+			num.f64 = node->fval;
 			println("  # convert a0 to fa0 with a float value of %f",
 				node->fval);
 			println("  li a0, %lu  # double %f", num.u64,

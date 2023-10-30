@@ -532,9 +532,11 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 		SHORT = 1 << 6,
 		INT = 1 << 8,
 		LONG = 1 << 10,
-		OTHER = 1 << 12,
-		SIGNED = 1 << 13,
-		UNSIGNED = 1 << 14,
+		FLOAT = 1 << 12,
+		DOUBLE = 1 << 14,
+		OTHER = 1 << 16,
+		SIGNED = 1 << 17,
+		UNSIGNED = 1 << 18,
 	};
 
 	struct Type *type = TyInt;
@@ -633,6 +635,10 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 			Counter += INT;
 		else if (equal(token, "long"))
 			Counter += LONG;
+		else if (equal(token, "float"))
+			Counter += FLOAT;
+		else if (equal(token, "double"))
+			Counter += DOUBLE;
 		else if (equal(token, "signed"))
 			Counter |= SIGNED;
 		else if (equal(token, "unsigned"))
@@ -689,6 +695,12 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 		case UNSIGNED + LONG + LONG:
 		case UNSIGNED + LONG + LONG + INT:
 			type = TyULong;
+			break;
+		case FLOAT:
+			type = TyFloat;
+			break;
+		case DOUBLE:
+			type = TyDouble;
 			break;
 		default:
 			error_token(token, "invalid type");
@@ -1521,7 +1533,8 @@ static bool is_typename(struct Token *token)
 		"typedef",    "enum",	      "static",	   "extern",
 		"_Alignas",   "signed",	      "unsigned",  "const",
 		"volatile",   "auto",	      "register",  "restrict",
-		"__restrict", "__restrict__", "_Noreturn",
+		"__restrict", "__restrict__", "_Noreturn", "float",
+		"double",
 	};
 
 	for (int i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {

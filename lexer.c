@@ -169,7 +169,7 @@ static bool is_keyword(struct Token *token)
 		"_Alignof",  "_Alignas", "do",	       "signed",
 		"unsigned",  "const",	 "volatile",   "auto",
 		"register",  "restrict", "__restrict", "__restrict__",
-		"_Noreturn",
+		"_Noreturn", "float",	 "double",
 	};
 
 	for (int i = 0; i < sizeof(KeyWords) / sizeof(*KeyWords); ++i) {

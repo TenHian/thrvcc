@@ -116,6 +116,11 @@ int main()
 	ASSERT(1, sizeof(char) << 31 >> 31);
 	ASSERT(1, sizeof(char) << 63 >> 63);
 
+	// [139] support float and double for local variables or type conversions
+	printf("[139] support float and double for local variables or type conversions\n");
+	ASSERT(4, sizeof(float));
+	ASSERT(8, sizeof(double));
+
 	printf("OK\n");
 	return 0;
 }
