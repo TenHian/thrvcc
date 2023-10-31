@@ -2786,6 +2786,10 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 			arg = new_cast(arg, param_type);
 			// forword, next parameter type
 			param_type = param_type->next;
+		} else if (arg->type->kind == TY_FLOAT) {
+			// if the parameter type is not specified, \
+			// the float is raised to double
+			arg = new_cast(arg, TyDouble);
 		}
 		// store parameter
 		cur->next = arg;
