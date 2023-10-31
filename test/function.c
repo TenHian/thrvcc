@@ -124,6 +124,10 @@ unsigned short ushort_fn();
 signed char schar_fn();
 short sshort_fn();
 
+// [143] allows functions to use floating-point numbers
+double add_double(double x, double y);
+float add_float(float x, float y);
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -242,6 +246,11 @@ int main()
 	ASSERT(65528, ushort_fn());
 	ASSERT(-5, schar_fn());
 	ASSERT(-8, sshort_fn());
+
+	// [143] allows functions to use floating-point numbers
+	printf("[143] allows functions to use floating-point numbers\n");
+	ASSERT(6, add_float(2.3, 3.8));
+	ASSERT(6, add_double(2.3, 3.8));
 
 	printf("OK\n");
 	return 0;

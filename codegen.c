@@ -14,10 +14,6 @@ static FILE *OutputFile;
 //         void codegen(struct Function *prog)
 static int StackDepth;
 
-// the registers that used to store func args
-// used by func
-//         static void gen_expr(struct AstNode *node)
-static char *ArgsReg[] = { "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7" };
 // current func
 static struct Obj_Var *CurFn;
 
@@ -55,10 +51,10 @@ static void push(void)
 }
 
 // pop stack, mov the top val of stack into a1
-static void pop(char *reg)
+static void pop(int reg)
 {
-	println("  # pop out the top of the stack, and mov it into %s", reg);
-	println("  ld %s, 0(sp)", reg);
+	println("  # pop out the top of the stack, and mov it into a%d", reg);
+	println("  ld a%d, 0(sp)", reg);
 	println("  addi sp, sp, 8");
 	StackDepth--;
 }
@@ -72,10 +68,10 @@ static void pushf(void)
 	StackDepth++;
 }
 
-static void popf(char *reg)
+static void popf(int reg)
 {
-	println("  # pop stack, load to %s from stack", reg);
-	println("  fld %s, 0(sp)", reg);
+	println("  # pop stack, load to a%d from stack", reg);
+	println("  fld fa%d, 0(sp)", reg);
 	println("  addi sp, sp, 8");
 	StackDepth--;
 }
@@ -160,7 +156,7 @@ static void load(struct Type *type)
 // store the top item (its addr) into a0
 static void store(struct Type *type)
 {
-	pop("a1");
+	pop(1);
 
 	switch (type->kind) {
 	case TY_STRUCT:
@@ -413,6 +409,29 @@ static void cast(struct Type *from, struct Type *to)
 	}
 }
 
+// the function arguments are evaluated and pushed onto the stack
+static void push_args(struct AstNode *args)
+{
+	// empty, return
+	if (!args)
+		return;
+
+	// recursion to the last argument
+	push_args(args->next);
+
+	println("\n  # ↓evaluate expression %s, push stack↓",
+		is_float(args->type) ? "float" : "integer");
+	// evaluate expression
+	gen_expr(args);
+	// push stack according to result type
+	if (is_float(args->type)) {
+		pushf();
+	} else {
+		push();
+	}
+	println("  # ↑push stack end↑");
+}
+
 static void gen_expr(struct AstNode *node)
 {
 	// .loc, file number, line number
@@ -577,18 +596,45 @@ static void gen_expr(struct AstNode *node)
 		println("  not a0, a0");
 		return;
 	case ND_FUNCALL: {
-		// args count
-		int args_count = 0;
 		// cau all args' value, push stack forward
-		for (struct AstNode *arg = node->args; arg; arg = arg->next) {
-			gen_expr(arg);
-			push();
-			args_count++;
-		}
+		push_args(node->args);
 
-		// pop stack, a0->arg1, a1->arg2
-		for (int i = args_count - 1; i >= 0; i--)
-			pop(ArgsReg[i]);
+		// reverse pop stack, a0-> Parameter 1, a1-> Parameter 2 ...
+		int gp = 0, fp = 0;
+		// read func parameter's type
+		struct Type *cur_arg = node->func_type->params;
+		for (struct AstNode *arg = node->args; arg; arg = arg->next) {
+			// if variadic func
+			// when an empty argument (the last one) is matched, \
+			// pop stack the remaining integer registers
+			if (node->func_type->is_variadic && cur_arg == NULL) {
+				if (gp < 8) {
+					println("  # a%d pass variadic argument",
+						gp);
+					pop(gp++);
+				}
+				continue;
+			}
+
+			cur_arg = cur_arg->next;
+			if (is_float(arg->type)) {
+				if (fp < 8) {
+					println("  # fa%d pass float argument",
+						fp);
+					popf(fp++);
+				} else if (gp < 8) {
+					println("  # a%d pass float argument",
+						gp);
+					pop(gp++);
+				}
+			} else {
+				if (gp < 8) {
+					println("  # a%d pass integer argument",
+						gp);
+					pop(gp++);
+				}
+			}
+		}
 
 		// func call
 		if (StackDepth % 2 == 0) {
@@ -646,7 +692,7 @@ static void gen_expr(struct AstNode *node)
 		gen_expr(node->rhs);
 		pushf();
 		gen_expr(node->lhs);
-		popf("fa1");
+		popf(1);
 
 		// generate each binary tree node
 		// float corresponds to the s(single) suffix and double corresponds to the d(double) suffix
@@ -694,7 +740,7 @@ static void gen_expr(struct AstNode *node)
 	gen_expr(node->rhs);
 	push();
 	gen_expr(node->lhs);
-	pop("a1");
+	pop(1);
 
 	// gen bin-tree node
 	char *suffix =
@@ -1066,22 +1112,21 @@ static void emit_data(struct Obj_Var *prog)
 // push register value into stack
 static void reg2stack(int reg, int offset, int size)
 {
-	println("  # push register %s value into %d(fp) stack", ArgsReg[reg],
-		offset);
+	println("  # push register a%d value into %d(fp) stack", reg, offset);
 	println("  li t0, %d", offset);
 	println("  add t0, fp, t0");
 	switch (size) {
 	case 1:
-		println("  sb %s, 0(t0)", ArgsReg[reg]);
+		println("  sb a%d, 0(t0)", reg);
 		return;
 	case 2:
-		println("  sh %s, 0(t0)", ArgsReg[reg]);
+		println("  sh a%d, 0(t0)", reg);
 		return;
 	case 4:
-		println("  sw %s, 0(t0)", ArgsReg[reg]);
+		println("  sw a%d, 0(t0)", reg);
 		return;
 	case 8:
-		println("  sd %s, 0(t0)", ArgsReg[reg]);
+		println("  sd a%d, 0(t0)", reg);
 		return;
 	}
 	unreachable();
