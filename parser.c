@@ -209,6 +209,7 @@ static int64_t eval(struct AstNode *node);
 static int64_t eval2(struct AstNode *node, char **label);
 static int64_t eval_rval(struct AstNode *node, char **label);
 static int64_t const_expr(struct Token **rest, struct Token *token);
+static double eval_double(struct AstNode *node);
 static struct AstNode *assign(struct Token **rest, struct Token *token);
 static struct AstNode *conditional(struct Token **rest, struct Token *token);
 static struct AstNode *log_or(struct Token **rest, struct Token *token);
@@ -1482,6 +1483,20 @@ static struct Relocation *write_gvar_data(struct Relocation *cur,
 	if (!init->expr)
 		return cur;
 
+	// handle float
+	if (type->kind == TY_FLOAT) {
+		// access the buffer after plus offset converting it to float*
+		*(float *)(buf + offset) = eval_double(init->expr);
+		return cur;
+	}
+
+	// handle double
+	if (type->kind == TY_DOUBLE) {
+		// access the buffer after plus offset converting it to double*
+		*(double *)(buf + offset) = eval_double(init->expr);
+		return cur;
+	}
+
 	// preset the other global variables' name that to be used
 	char *label = NULL;
 	uint64_t val = eval2(init->expr, &label);
@@ -1908,6 +1923,10 @@ static int64_t eval2(struct AstNode *node, char **label)
 {
 	add_type(node);
 
+	// handle float type
+	if (is_float(node->type))
+		return eval_double(node);
+
 	switch (node->kind) {
 	case ND_ADD:
 		return eval2(node->lhs, label) + eval(node->rhs);
@@ -2041,6 +2060,46 @@ static int64_t const_expr(struct Token **rest, struct Token *token)
 	struct AstNode *node = conditional(rest, token);
 	// compute constant expression
 	return eval(node);
+}
+
+// parsing float constant expressions
+static double eval_double(struct AstNode *node)
+{
+	add_type(node);
+
+	// handle case integer
+	if (is_integer(node->type)) {
+		if (node->type->is_unsigned)
+			return (unsigned long)eval(node);
+		return eval(node);
+	}
+
+	switch (node->kind) {
+	case ND_ADD:
+		return eval_double(node->lhs) + eval_double(node->rhs);
+	case ND_SUB:
+		return eval_double(node->lhs) - eval_double(node->rhs);
+	case ND_MUL:
+		return eval_double(node->lhs) * eval_double(node->rhs);
+	case ND_DIV:
+		return eval_double(node->lhs) / eval_double(node->rhs);
+	case ND_NEG:
+		return -eval_double(node->lhs);
+	case ND_COND:
+		return eval_double(node->condition) ? eval_double(node->then_) :
+						      eval_double(node->else_);
+	case ND_COMMA:
+		return eval_double(node->rhs);
+	case ND_CAST:
+		if (is_float(node->lhs->type))
+			return eval_double(node->lhs);
+		return eval(node->lhs);
+	case ND_NUM:
+		return node->fval;
+	default:
+		error_token(node->tok, "not a compile-time constant");
+		return -1;
+	}
 }
 
 // convert "A op= B" to "TMP = &A, *TMP = *TMP op B"

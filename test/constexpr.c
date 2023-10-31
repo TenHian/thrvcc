@@ -1,5 +1,9 @@
 #include "test.h"
 
+// [147] support floating-point constant expressions
+float g40 = 1.5;
+double g41 = 0.0 ? 55 : (0, 1 + 1 * 5.0 / 2 * (double)2 * (int)2.0);
+
 int main()
 {
 	// [95] Support for constant expression
@@ -175,6 +179,11 @@ int main()
 		       char x[(unsigned)1 <= -1];
 		       sizeof(x);
 	       }));
+
+	// [147] support floating-point constant expressions
+	printf("[147] support floating-point constant expressions\n");
+	ASSERT(1, g40 == 1.5);
+	ASSERT(1, g41 == 11);
 
 	printf("OK\n");
 	return 0;
