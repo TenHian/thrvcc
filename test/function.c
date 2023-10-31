@@ -276,6 +276,14 @@ int main()
 		       strcmp(buf, "3.5");
 	       }));
 
+	// [146] variadic functions can already use floating-point arguments
+	printf("[146] variadic functions can already use floating-point arguments\n");
+	ASSERT(0, ({
+		       char buf[100];
+		       fmt(buf, "%.1f", (float)3.5);
+		       strcmp(buf, "3.5");
+	       }));
+
 	printf("OK\n");
 	return 0;
 }
