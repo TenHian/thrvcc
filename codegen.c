@@ -430,9 +430,22 @@ static void gen_expr(struct AstNode *node)
 	}
 	case ND_NEG:
 		gen_expr(node->lhs);
-		println("  # reverse the value of a0");
-		println("  neg%s a0, a0", node->type->size <= 4 ? "w" : "");
-		return;
+
+		switch (node->type->kind) {
+		case TY_FLOAT:
+			println("  # neg float type fa0");
+			println("  fneg.s fa0, fa0");
+			return;
+		case TY_DOUBLE:
+			println("  # neg double type fa0");
+			println("  fneg.d fa0, fa0");
+			return;
+		default:
+			println("  # reverse the value of a0");
+			println("  neg%s a0, a0",
+				node->type->size <= 4 ? "w" : "");
+			return;
+		}
 	case ND_VAR:
 	case ND_MEMBER:
 		gen_addr(node);
@@ -612,6 +625,22 @@ static void gen_expr(struct AstNode *node)
 		char *suffix = (node->lhs->type->kind == TY_FLOAT) ? "s" : "d";
 
 		switch (node->kind) {
+		case ND_ADD:
+			println("  # fa0+fa1, write into fa0");
+			println("  fadd.%s fa0, fa0, fa1", suffix);
+			return;
+		case ND_SUB:
+			println("  # fa0-fa1, write into fa0");
+			println("  fsub.%s fa0, fa0, fa1", suffix);
+			return;
+		case ND_MUL:
+			println("  # fa0xfa1, write into fa0");
+			println("  fmul.%s fa0, fa0, fa1", suffix);
+			return;
+		case ND_DIV:
+			println("  # fa0/fa1, write into fa0");
+			println("  fdiv.%s fa0, fa0, fa1", suffix);
+			return;
 		case ND_EQ:
 			println("  # check whether fa0=fa1");
 			println("  feq.%s a0, fa0, fa1", suffix);

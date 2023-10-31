@@ -2332,7 +2332,7 @@ static struct AstNode *new_add(struct AstNode *lhs, struct AstNode *rhs,
 	add_type(lhs);
 	add_type(rhs);
 	// num + num
-	if (is_integer(lhs->type) && is_integer(rhs->type))
+	if (is_numeric(lhs->type) && is_numeric(rhs->type))
 		return new_binary_tree_node(ND_ADD, lhs, rhs, token);
 	// if "ptr + ptr", error
 	if (lhs->type->base && rhs->type->base)
@@ -2360,7 +2360,7 @@ static struct AstNode *new_sub(struct AstNode *lhs, struct AstNode *rhs,
 	add_type(rhs);
 
 	// num - num
-	if (is_integer(lhs->type) && is_integer(rhs->type))
+	if (is_numeric(lhs->type) && is_numeric(rhs->type))
 		return new_binary_tree_node(ND_SUB, lhs, rhs, token);
 	// ptr - num
 	if (lhs->type->base && is_integer(rhs->type)) {

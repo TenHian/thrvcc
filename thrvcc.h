@@ -257,6 +257,7 @@ struct Token *skip(struct Token *token, char *str);
 bool consume(struct Token **rest, struct Token *token, char *str);
 bool is_integer(struct Type *type);
 bool is_float(struct Type *type);
+bool is_numeric(struct Type *type);
 // copy type
 struct Type *copy_type(struct Type *type);
 struct Type *pointer_to(struct Type *base);

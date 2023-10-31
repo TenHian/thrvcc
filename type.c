@@ -34,6 +34,11 @@ bool is_float(struct Type *type)
 	return type->kind == TY_FLOAT || type->kind == TY_DOUBLE;
 }
 
+bool is_numeric(struct Type *type)
+{
+	return is_integer(type) || is_float(type);
+}
+
 // copy type
 struct Type *copy_type(struct Type *type)
 {
