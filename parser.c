@@ -701,6 +701,7 @@ static struct Type *declspec(struct Token **rest, struct Token *token,
 			type = TyFloat;
 			break;
 		case DOUBLE:
+		case LONG + DOUBLE:
 			type = TyDouble;
 			break;
 		default:
