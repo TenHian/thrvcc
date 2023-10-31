@@ -1109,7 +1109,26 @@ static void emit_data(struct Obj_Var *prog)
 	}
 }
 
-// push register value into stack
+// push float register value into stack
+static void freg2stack(int reg, int offset, int size)
+{
+	println("  # push register fa%d value into %d(fp) stack", reg, offset);
+	println("  li t0, %d", offset);
+	println("  add t0, fp, t0");
+
+	switch (size) {
+	case 4:
+		println("  fsw fa%d, 0(t0)", reg);
+		return;
+	case 8:
+		println("  fsd fa%d, 0(t0)", reg);
+		return;
+	default:
+		unreachable();
+	}
+}
+
+// push integer register value into stack
 static void reg2stack(int reg, int offset, int size)
 {
 	println("  # push register a%d value into %d(fp) stack", reg, offset);
@@ -1182,20 +1201,39 @@ void emit_text(struct Obj_Var *prog)
 		println("  li t0, -%d", fn->stack_size);
 		println("  add sp, sp, t0");
 
-		int i_regs = 0;
 		// normal passing of formal parameter
-		for (struct Obj_Var *var = fn->params; var; var = var->next)
-			reg2stack(i_regs++, var->offset, var->type->size);
+		int gp = 0, fp = 0;
+		for (struct Obj_Var *var = fn->params; var; var = var->next) {
+			if (is_float(var->type)) {
+				// normal passing float type parameter
+				if (fp < 8) {
+					println("  # push float parameter %s register value into fa%d stack",
+						var->name, fp);
+					freg2stack(fp++, var->offset,
+						   var->type->size);
+				} else {
+					println("  # push float parameter %s register value into fa%d stack",
+						var->name, gp);
+					reg2stack(gp++, var->offset,
+						  var->type->size);
+				}
+			} else {
+				// normal passing integer type parameter
+				println("  # push integer parameter %s register value into fa%d stack",
+					var->name, gp);
+				reg2stack(gp++, var->offset, var->type->size);
+			}
+		}
 
 		// variadic func
 		if (fn->va_area) {
 			// variadic func param stored in __va_area__, up to 7
 			int offset_ = fn->va_area->offset;
-			while (i_regs < 8) {
+			while (gp < 8) {
 				println("  # variadic, offset relative to %s is %d",
 					fn->va_area->name,
 					offset_ - fn->va_area->offset);
-				reg2stack(i_regs++, offset_, 8);
+				reg2stack(gp++, offset_, 8);
 				offset_ += 8;
 			}
 		}

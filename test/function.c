@@ -128,6 +128,17 @@ short sshort_fn();
 double add_double(double x, double y);
 float add_float(float x, float y);
 
+// [144] allows functions to be defined using floating-point numbers
+float add_float3(float x, float y, float z)
+{
+	return x + y + z;
+}
+
+double add_double3(double x, double y, double z)
+{
+	return x + y + z;
+}
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -251,6 +262,11 @@ int main()
 	printf("[143] allows functions to use floating-point numbers\n");
 	ASSERT(6, add_float(2.3, 3.8));
 	ASSERT(6, add_double(2.3, 3.8));
+
+	// [144] allows functions to be defined using floating-point numbers
+	printf("[144] allows functions to be defined using floating-point numbers\n");
+	ASSERT(7, add_float3(2.5, 2.5, 2.5));
+	ASSERT(7, add_double3(2.5, 2.5, 2.5));
 
 	printf("OK\n");
 	return 0;
