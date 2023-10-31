@@ -86,6 +86,14 @@ static struct Type *get_common_type(struct Type *ty1, struct Type *ty2)
 {
 	if (ty1->base)
 		return pointer_to(ty1->base);
+	// handle float type
+	// handle double first
+	if (ty1->kind == TY_DOUBLE || ty2->kind == TY_DOUBLE)
+		return TyDouble;
+	// then handle float
+	if (ty1->kind == TY_FLOAT || ty2->kind == TY_FLOAT)
+		return TyFloat;
+
 	// if less than 4 bytes, its integer
 	if (ty1->size < 4)
 		ty1 = TyInt;

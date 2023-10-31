@@ -63,6 +63,23 @@ static void pop(char *reg)
 	StackDepth--;
 }
 
+// push float type
+static void pushf(void)
+{
+	println("  # push stack, push the value of fa0 into stack");
+	println("  addi sp, sp, -8");
+	println("  fsd fa0, 0(sp)");
+	StackDepth++;
+}
+
+static void popf(char *reg)
+{
+	println("  # pop stack, load to %s from stack", reg);
+	println("  fld %s, 0(sp)", reg);
+	println("  addi sp, sp, 8");
+	StackDepth--;
+}
+
 // align to an integer multiple of align
 int align_to(int N, int Align)
 {
@@ -580,6 +597,41 @@ static void gen_expr(struct AstNode *node)
 	}
 	default:
 		break;
+	}
+
+	// handle float type
+	if (is_float(node->lhs->type)) {
+		// recursively to the rightmost node
+		gen_expr(node->rhs);
+		pushf();
+		gen_expr(node->lhs);
+		popf("fa1");
+
+		// generate each binary tree node
+		// float corresponds to the s(single) suffix and double corresponds to the d(double) suffix
+		char *suffix = (node->lhs->type->kind == TY_FLOAT) ? "s" : "d";
+
+		switch (node->kind) {
+		case ND_EQ:
+			println("  # check whether fa0=fa1");
+			println("  feq.%s a0, fa0, fa1", suffix);
+			return;
+		case ND_NE:
+			println("  # check whether fa0!=fa1");
+			println("  feq.%s a0, fa0, fa1", suffix);
+			println("  seqz a0, a0");
+			return;
+		case ND_LT:
+			println("  # check whether fa0<fa1");
+			println("  flt.%s a0, fa0, fa1", suffix);
+			return;
+		case ND_LE:
+			println("  # check whether fa0<=fa1");
+			println("  fle.%s a0, fa0, fa1", suffix);
+			return;
+		default:
+			error_token(node->tok, "invalid expression");
+		}
 	}
 
 	gen_expr(node->rhs);
