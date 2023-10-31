@@ -199,6 +199,27 @@ static void store(struct Type *type)
 		println("  sd a0, 0(a1)");
 }
 
+// compare with 0, not 0 return 1
+static void xor0f(struct Type *type)
+{
+	switch (type->kind) {
+	case TY_FLOAT:
+		println("  # check fa1 whether 0, if not, make it 1");
+		println("  fmv.s.x fa1, zero");
+		println("  feq.s a0, fa0, fa1");
+		println("  xori a0, a0, 1");
+		return;
+	case TY_DOUBLE:
+		println("  # check fa1 whether 0, if not, make it 1");
+		println("  fmv.d.x fa1, zero");
+		println("  feq.d a0, fa0, fa1");
+		println("  xori a0, a0, 1");
+		return;
+	default:
+		return;
+	}
+}
+
 // type enum
 enum { I8, I16, I32, I64, U8, U16, U32, U64, F32, F64 };
 
@@ -377,6 +398,7 @@ static void cast(struct Type *from, struct Type *to)
 		return;
 
 	if (to->kind == TY_BOOL) {
+		xor0f(from);
 		println("  # convert to bool type: if 0 assign 0, else assign 1");
 		println("  snez a0, a0");
 		return;
@@ -492,6 +514,7 @@ static void gen_expr(struct AstNode *node)
 		int C = count();
 		println("\n# ====== conditional operator %d ======", C);
 		gen_expr(node->condition);
+		xor0f(node->condition->type);
 		println("  # condition determination, if 0, jump");
 		println("  beqz a0, .L.else.%d", C);
 		gen_expr(node->then_);
@@ -504,6 +527,7 @@ static void gen_expr(struct AstNode *node)
 	}
 	case ND_NOT:
 		gen_expr(node->lhs);
+		xor0f(node->lhs->type);
 		println("  # NOT operation");
 		// if a0=0 set to 1, otherwise 0
 		println("  seqz a0, a0");
@@ -513,9 +537,11 @@ static void gen_expr(struct AstNode *node)
 		println("\n# ====== logical and %d ======", C);
 		gen_expr(node->lhs);
 		// Determine if it is a short-circuit operation
+		xor0f(node->lhs->type);
 		println("  # Left short-circuit operation judgment, if 0, then jump");
 		println("  beqz a0, .L.false.%d", C);
 		gen_expr(node->rhs);
+		xor0f(node->rhs->type);
 		println("  # The right part of the judgment, 0 will be jumped");
 		println("  beqz a0, .L.false.%d", C);
 		println("  li a0, 1");
@@ -529,10 +555,12 @@ static void gen_expr(struct AstNode *node)
 		int C = count();
 		println("\n# ====== logical or %d ======", C);
 		gen_expr(node->lhs);
+		xor0f(node->lhs->type);
 		// Determine if it is a short-circuit operation
 		println("  # Left short-circuit operation judgment, if 0, then jump");
 		println("  bnez a0, .L.true.%d", C);
 		gen_expr(node->rhs);
+		xor0f(node->rhs->type);
 		println("  # The right part of the judgment, 0 will be jumped");
 		println("  bnez a0, .L.true.%d", C);
 		println("  li a0, 0");
@@ -791,6 +819,7 @@ static void gen_stmt(struct AstNode *node)
 		// gen conditional stmt
 		println("\n# Conditional Statement %d", C);
 		gen_expr(node->condition);
+		xor0f(node->condition->type);
 		// determine condition, if 0 jump to label else
 		println("  # if a0 == 0, jump to branch%d's .L.else.%d segment",
 			C, C);
@@ -830,6 +859,7 @@ static void gen_stmt(struct AstNode *node)
 		if (node->condition) {
 			// gen loop's conditional stmt
 			gen_expr(node->condition);
+			xor0f(node->condition->type);
 			// determine condition, if 0 jump to loop's end
 			println("  # if a0==0, jump to loop%d's %s segment", C,
 				node->brk_label);
@@ -866,6 +896,7 @@ static void gen_stmt(struct AstNode *node)
 		println("%s:", node->ctue_label);
 		gen_expr(node->condition);
 
+		xor0f(node->condition->type);
 		println("  # jump to loop%d's .L.begin.%d segment", C, C);
 		println("  bnez a0, .L.begin.%d", C);
 
