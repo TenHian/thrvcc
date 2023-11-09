@@ -211,7 +211,6 @@ struct AstNode {
 	struct Member *member; // struct member
 
 	// func call
-	char *func_name; // func name
 	struct Type *func_type; // func type
 	struct AstNode *args; // func args
 

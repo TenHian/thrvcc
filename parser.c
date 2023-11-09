@@ -165,21 +165,28 @@ static struct AstNode *CurSwitch;
 // structDecl = structUnionDecl
 // unionDecl = structUnionDecl
 // structUnionDecl = ident? ("{" structMembers)?
-// postfix = "(" typeName ")" "{" initializerList "}"
-//         | primary ("[" expr "]" | "." ident)* | "->" ident | "++" | "--")*
+//         = ident "(" funcArgs ")" postfixTail*
+//         | primary postfixTail*
+//
+// postfixTail = "[" expr "]"
+//             | "(" funcArgs ")"
+//             | "." ident
+//             | "->" ident
+//             | "++"
+//             | "--"
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
 //         | "sizeof" "(" typeName ")"
 //         | "sizeof" unary
 //         | "_Alignof" "(" typeName ")"
 //         | "_Alignof" unary
-//         | ident funcArgs?
+//         | ident
 //         | str
 //         | num
 // typeName = declspec abstractDeclarator
 // abstractDeclarator = pointers ("(" abstractDeclarator ")")? typeSuffix
 
-// funcall = ident "(" (assign ("," assign)*)? ")"
+// funcall = (assign ("," assign)*)? ")"
 
 static bool is_typename(struct Token *token);
 static struct Type *declspec(struct Token **rest, struct Token *token,
@@ -231,6 +238,8 @@ static struct Type *struct_decl(struct Token **rest, struct Token *token);
 static struct Type *union_decl(struct Token **rest, struct Token *token);
 static struct AstNode *unary(struct Token **rest, struct Token *token);
 static struct AstNode *postfix(struct Token **rest, struct Token *token);
+static struct AstNode *func_call(struct Token **rest, struct Token *token,
+				 struct AstNode *node);
 static struct AstNode *primary(struct Token **rest, struct Token *token);
 static bool is_typename(struct Token *token);
 static struct Token *parse_typedef(struct Token *token, struct Type *base_ty);
@@ -2739,7 +2748,15 @@ static struct AstNode *new_inc_dec(struct AstNode *node, struct Token *token,
 }
 
 // postfix = "(" typeName ")" "{" initializerList "}"
-//         | primary ("[" expr "]" | "." ident)* | "->" ident | "++" | "--")*
+//         = ident "(" funcArgs ")" postfixTail*
+//         | primary postfixTail*
+//
+// postfixTail = "[" expr "]"
+//             | "(" funcArgs ")"
+//             | "." ident
+//             | "->" ident
+//             | "++"
+//             | "--"
 static struct AstNode *postfix(struct Token **rest, struct Token *token)
 {
 	// "(" typeName ")" "{" initializerList "}"
@@ -2766,6 +2783,12 @@ static struct AstNode *postfix(struct Token **rest, struct Token *token)
 
 	// ("[" expr "]")*
 	while (true) {
+		// ident "(" funcArgs ")"
+		if (equal(token, "(")) {
+			node = func_call(&token, token->next, node);
+			continue;
+		}
+
 		if (equal(token, "[")) {
 			// x[y] equal to *(x+y)
 			struct Token *start = token;
@@ -2808,22 +2831,21 @@ static struct AstNode *postfix(struct Token **rest, struct Token *token)
 }
 
 // parse func call
-// funcall = ident "(" (assign ("," assign)*)? ")"
-static struct AstNode *func_call(struct Token **rest, struct Token *token)
+// funcall = (assign ("," assign)*)? ")"
+static struct AstNode *func_call(struct Token **rest, struct Token *token,
+				 struct AstNode *fn)
 {
-	struct Token *start = token;
-	token = token->next->next;
+	add_type(fn);
 
-	// search function name
-	struct VarScope *vsp = find_var(start);
-	if (!vsp)
-		error_token(start, "implicit declaration of a function");
-	if (!vsp->var || vsp->var->type->kind != TY_FUNC)
-		error_token(start, "not a function");
+	// check func pointer
+	if (fn->type->kind != TY_FUNC &&
+	    (fn->type->kind != TY_PTR || fn->type->base->kind != TY_FUNC))
+		error_token(fn->tok, "not a function");
 
-	// func name type
-	struct Type *type = vsp->var->type;
-	// func parameters type
+	// no func pionter
+	struct Type *type = (fn->type->kind == TY_FUNC) ? fn->type :
+							  fn->type->base;
+	// func parameter type
 	struct Type *param_type = type->params;
 
 	struct AstNode head = {};
@@ -2859,10 +2881,8 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 
 	*rest = skip(token, ")");
 
-	struct AstNode *node = new_astnode(ND_FUNCALL, start);
+	struct AstNode *node = new_unary_tree_node(ND_FUNCALL, fn, token);
 
-	// ident
-	node->func_name = strndup(start->location, start->len);
 	// func type
 	node->func_type = type;
 	// return type
@@ -2878,7 +2898,7 @@ static struct AstNode *func_call(struct Token **rest, struct Token *token)
 //         | "sizeof" unary
 //         | "_Alignof" "(" typeName ")"
 //         | "_Alignof" unary
-//         | ident funcArgs?
+//         | ident
 //         | str
 //         | num
 static struct AstNode *primary(struct Token **rest, struct Token *token)
@@ -2927,29 +2947,25 @@ static struct AstNode *primary(struct Token **rest, struct Token *token)
 		add_type(node);
 		return new_ulong(node->type->align, token);
 	}
-	// ident args?
+	// ident
 	if (token->kind == TK_IDENT) {
-		// func call
-		if (equal(token->next, "("))
-			return func_call(rest, token);
-
-		// ident
 		// find var or enum constant
 		struct VarScope *vsp = find_var(token);
-		// if var or enum constant not exist, creat a new var in global var list
-		if (!vsp || (!vsp->var && !vsp->_enum))
-			error_token(token, "undefined variable");
-
-		struct AstNode *node;
-		// whether it is a variable
-		if (vsp->var)
-			node = new_var_astnode(vsp->var, token);
-		// else, enum constant
-		else
-			node = new_num_astnode(vsp->enum_val, token);
-
 		*rest = token->next;
-		return node;
+
+		if (vsp) {
+			// if constant
+			if (vsp->var)
+				return new_var_astnode(vsp->var, token);
+			// else enum constant
+			if (vsp->_enum)
+				return new_num_astnode(vsp->enum_val, token);
+		}
+
+		if (equal(token->next, "("))
+			error_token(token,
+				    "implicit declaration of a function");
+		error_token(token, "undefined variable");
 	}
 	// str
 	if (token->kind == TK_STR) {

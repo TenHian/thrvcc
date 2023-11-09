@@ -89,16 +89,44 @@ static void gen_addr(struct AstNode *node)
 {
 	switch (node->kind) {
 	case ND_VAR:
+		// local var
 		if (node->var->is_local) { // offset fp
 			println("  # get varable %s's address in stack as %d(fp)",
 				node->var->name, node->var->offset);
 			println("  li t0, %d", node->var->offset);
 			println("  add a0, fp, t0");
-		} else {
-			println("  # get global var %s address",
-				node->var->name);
-			println("  la a0, %s", node->var->name);
+			return;
 		}
+		if (node->type->kind == TY_FUNC) {
+			// function defined
+			if (node->var->is_definition) {
+				println("  # get global var %s address",
+					node->var->name);
+				println("  la a0, %s", node->var->name);
+			}
+			// external function
+			else {
+				int c = count();
+				println("  # get external function address");
+				println(".Lpcrel_hi%d:", c);
+				// high 20 bits, store in a0
+				println("  auipc a0, %%got_pcrel_hi(%s)",
+					node->var->name);
+				// low 12 bits, add into a0
+				println("  ld a0, %%pcrel_lo(.Lpcrel_hi%d)(a0)",
+					c);
+			}
+			return;
+		}
+
+		// global var
+		int c = count();
+		println("  # get global variable absolute address");
+		println(".Lpcrel_hi%d:", c);
+		// high 20 bits, store in a0
+		println("  auipc a0, %%got_pcrel_hi(%s)", node->var->name);
+		// low 12 bits, add into a0
+		println("  ld a0, %%pcrel_lo(.Lpcrel_hi%d)(a0)", c);
 		return;
 	case ND_DEREF:
 		gen_expr(node->lhs);
@@ -126,6 +154,7 @@ static void load(struct Type *type)
 	case TY_ARRAY:
 	case TY_STRUCT:
 	case TY_UNION:
+	case TY_FUNC:
 		return;
 	case TY_FLOAT:
 		println("  # access the address stored in a0, and the obtained value is stored in fa0");
@@ -598,6 +627,9 @@ static void gen_expr(struct AstNode *node)
 	case ND_FUNCALL: {
 		// cau all args' value, push stack forward
 		push_args(node->args);
+		gen_expr(node->lhs);
+		// mv a0 value t5
+		println("  mv t5, a0");
 
 		// reverse pop stack, a0-> Parameter 1, a1-> Parameter 2 ...
 		int gp = 0, fp = 0;
@@ -639,14 +671,13 @@ static void gen_expr(struct AstNode *node)
 		// func call
 		if (StackDepth % 2 == 0) {
 			// even depth, sp already aligned with 16 bytes
-			println("  # func call %s", node->func_name);
-			println("  call %s", node->func_name);
+			println("  # func call");
+			println("  jalr t5");
 		} else {
 			// align sp to 16 byte boundaries
-			println("  # align sp to 16 byte boundaries, then call func %s",
-				node->func_name);
+			println("  # align sp to 16 byte boundaries, then call func");
 			println("  addi sp, sp, -8");
-			println("  call %s", node->func_name);
+			println("  jalr t5");
 			println("  addi sp, sp, 8");
 		}
 
