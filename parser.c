@@ -756,10 +756,15 @@ static struct Type *func_params(struct Token **rest, struct Token *token,
 		struct Type *type2 = declspec(&token, token, NULL);
 		type2 = declarator(&token, token, type2);
 
-		// An array of type T is converted to type T*
+		// store name
+		struct Token *name = type2->name;
+
+		// type T array or function are converted to type T*
 		if (type2->kind == TY_ARRAY) {
-			struct Token *name = type2->name;
 			type2 = pointer_to(type2->base);
+			type2->name = name;
+		} else if (type2->kind == TY_FUNC) {
+			type2 = pointer_to(type2);
 			type2->name = name;
 		}
 

@@ -144,6 +144,11 @@ int (*fnptr(int (*fn)(int n, ...)))(int, ...)
 	return fn;
 }
 
+int param_decay2(int x())
+{
+	return x();
+}
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -298,6 +303,10 @@ int main()
 		       fn(2, 5);
 	       }));
 	ASSERT(6, fnptr(add_all)(3, 1, 2, 3));
+
+	// [150] degenerate functions into pointers in function arguments
+	printf("[150] degenerate functions into pointers in function arguments\n");
+	ASSERT(3, param_decay2(ret3));
 
 	printf("OK\n");
 	return 0;
