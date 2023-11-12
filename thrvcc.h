@@ -13,6 +13,9 @@
 #include <stdbool.h>
 #include <string.h>
 #include <strings.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define MAX(x, y) ((x) < (y) ? (y) : (x))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
