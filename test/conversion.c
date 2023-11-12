@@ -1,5 +1,10 @@
 #include "test.h"
 
+static int ret10(void)
+{
+	return 10;
+}
+
 int main()
 {
 	// [67] Implement regular arithmetic conversions
@@ -50,6 +55,10 @@ int main()
 		       y = x;
 		       y.a;
 	       }));
+
+	// [151] supports regular arithmetic conversion of function pointers
+	printf("[151] supports regular arithmetic conversion of function pointers\n");
+	ASSERT(10, (1 ? ret10 : (void *)0)());
 
 	printf("OK\n");
 	return 0;

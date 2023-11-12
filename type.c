@@ -91,6 +91,13 @@ static struct Type *get_common_type(struct Type *ty1, struct Type *ty2)
 {
 	if (ty1->base)
 		return pointer_to(ty1->base);
+
+	// performs regular arithmetic conversion for function pointers
+	if (ty1->kind == TY_FUNC)
+		return pointer_to(ty1);
+	if (ty2->kind == TY_FUNC)
+		return pointer_to(ty2);
+
 	// handle float type
 	// handle double first
 	if (ty1->kind == TY_DOUBLE || ty2->kind == TY_DOUBLE)
