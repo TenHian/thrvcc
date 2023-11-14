@@ -1,5 +1,6 @@
 #include "thrvcc.h"
 #include <errno.h>
+#include <libgen.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -7,6 +8,15 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+// [attention]
+// if you are cross-compiling, change this path to the path corresponding to ricsv toolchain
+// must be an absulte path
+// else leave it empty
+static char *RVPath = "/usr";
+
+// -S
+static bool OptS;
 
 // -cc1
 static bool OptCC1;
@@ -19,6 +29,9 @@ static char *TargetPath;
 
 // Input file path
 static char *InputPath;
+
+// temporary files
+static struct StringArray TmpFiles;
 
 // output thrvcc usage
 static void usage(int status)
@@ -65,6 +78,12 @@ static void parse_args(int argc, char **argv)
 			continue;
 		}
 
+		// parse -S
+		if (!strcmp(argv[i], "-S")) {
+			OptS = true;
+			continue;
+		}
+
 		// parse "-" args
 		if (argv[i][0] == '-' && argv[i][1] != '\0')
 			error_out("unknown argument: %s", argv[i]);
@@ -89,6 +108,36 @@ static FILE *open_file(char *path)
 		error_out("cannot open output file: %s: %s", path,
 			  strerror(errno));
 	return out;
+}
+
+// replace file extern name
+static char *replace_extn(char *tmpl, char *extn)
+{
+	char *file_name = basename(strdup(tmpl));
+	char *dot = strrchr(file_name, '.');
+	if (dot)
+		*dot = '\0';
+	return format("%s%s", file_name, extn);
+}
+
+// cleanup temporary files
+static void cleanup(void)
+{
+	for (int i = 0; i < TmpFiles.len; i++)
+		unlink(TmpFiles.data[i]);
+}
+
+// create temporary files
+static char *create_tmpfile(void)
+{
+	char *path = strdup("/tmp/thrvcc-XXXXXX");
+	int fd = mkstemp(path);
+	if (fd == -1)
+		error_out("mkstemp failed: %s", strerror(errno));
+	close(fd);
+
+	str_array_push(&TmpFiles, path);
+	return path;
 }
 
 // run subprocess
@@ -128,7 +177,7 @@ static void run_subprocess(char **argv)
 // call cc1
 // cc1 is thrvcc itself
 // call itself
-static void run_cc1(int argc, char **argv)
+static void run_cc1(int argc, char **argv, char *input, char *output)
 {
 	// alloc more 10, casue new parameters
 	char **args = calloc(argc + 10, sizeof(char *));
@@ -136,6 +185,15 @@ static void run_cc1(int argc, char **argv)
 	memcpy(args, argv, argc * sizeof(char *));
 	// add '-cc1'
 	args[argc++] = "-cc1";
+
+	if (input)
+		args[argc++] = input;
+
+	if (output) {
+		args[argc++] = "-o";
+		args[argc++] = output;
+	}
+
 	// call itself, pass in
 	run_subprocess(args);
 }
@@ -155,6 +213,15 @@ static void cc1(void)
 	codegen(prog, out);
 }
 
+// call assembler
+static void assembler(char *input, char *output)
+{
+	char *as = strlen(RVPath) ? format("%s/bin/riscv64-elf-as", RVPath) :
+				    "as";
+	char *cmd[] = { as, "-c", input, "-o", output, NULL };
+	run_subprocess(cmd);
+}
+
 // Compiler Driven Flow
 //
 // source file
@@ -169,6 +236,9 @@ static void cc1(void)
 
 int main(int argc, char *argv[])
 {
+	// call cleanup() when program end
+	atexit(cleanup);
+
 	parse_args(argc, argv);
 
 	// if -cc1
@@ -178,8 +248,24 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	// call cc1 by default
-	run_cc1(argc, argv);
+	char *output;
+	if (TargetPath)
+		output = TargetPath;
+	else if (OptS)
+		output = replace_extn(InputPath, ".s");
+	else
+		output = replace_extn(InputPath, ".o");
+
+	// if '-S', call cc1
+	if (OptS) {
+		run_cc1(argc, argv, InputPath, output);
+		return 0;
+	}
+
+	// else call cc1 and as
+	char *tmp_file = create_tmpfile();
+	run_cc1(argc, argv, InputPath, tmp_file);
+	assembler(tmp_file, output);
 
 	return 0;
 }

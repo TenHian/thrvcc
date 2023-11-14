@@ -18,6 +18,24 @@ sudo pacman -S qemu-full
 
 ### Build with Makefile
 
+> Attention!!!
+> 
+> If you want to compile this project from source code, you should read the Makefile carefully. In addition, there are the following points to note:
+> 
+> 1. I developed this program on ArchLinux x86_64, and ArchLinux provides a comprehensive package, so I was able to get the riscv cross-compilation toolchain directly from pacman. If you can't use pacman, make sure there are no problems with your cross-compilation toolchain.
+> 
+> 2. Check the following snippet in main.c:  
+>    
+>    ```c
+>    // [attention]
+>    // if you are cross-compiling, change this path to the path corresponding to ricsv toolchain
+>    // must be an absulte path
+>    // else leave it empty
+>    static char *RVPath = "/usr";
+>    ```
+>    
+>    If you cross-compile, make sure RVPath is your riscv toolchain path, such as "RVPath/bin/riscv64-elf-as". If you compile on RISC-V machine, *RVPath = "".
+
 ```bash
 # binary
 make thrvcc
@@ -29,6 +47,9 @@ make test
 
 ```bash
 ./thrvcc -o out.s in.c
+./thrvcc -S in.c
+./thrvcc in.c
+./thrvcc --help
 ```
 
 ## TODO
@@ -68,10 +89,10 @@ other
 - [ ] auto
 - [x] break continue goto return
 - [x] if else switch case default
-- [ ] do for✔ while✔
-- [ ] char✔ double float int✔ long✔ register short✔ void✔
-- [ ] enum struc✔t typedef✔ union✔
-- [ ] const extern signed unsigned static volatile
+- [x] do for while
+- [ ] char✔ double✔ float✔ int✔ long✔ register short✔ void✔
+- [x] enum struct typedef union
+- [ ] const extern✔ signed✔ unsigned✔ static✔ volatile
 
 c99
 
@@ -83,8 +104,8 @@ c99
 
 c11
 
-- [ ] _Alignas
-- [ ] _Alignof
+- [x] _Alignas
+- [x] _Alignof
 - [ ] _Atomic
 - [ ] _Generic
 - [ ] _Noreturn
@@ -115,20 +136,20 @@ c11
 - [x] uncomplete array
 - [x] const expr
 - [x] initializer
-- [ ] extern
-- [ ] static
-- [ ] do while
-- [ ] signed unsigned
-- [ ] function pointer
-- [ ] separate out cc1
+- [x] extern
+- [x] static
+- [x] do while
+- [x] signed unsigned
+- [x] function pointer
+- [x] separate out cc1  
+  ......
 
 ## Authors and acknowledgment
 
 Authors:  
 &ensp;&ensp;TenHian  
 Related Projects:  
-&ensp;&ensp;[chibicc](https://github.com/rui314/chibicc)  
-&ensp;&ensp;[rvcc](https://github.com/sunshaoce/rvcc)  
+&ensp;&ensp;[chibicc](https://github.com/rui314/chibicc) 
 
 ## License
 

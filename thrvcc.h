@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
+#include <libgen.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -231,6 +232,13 @@ struct AstNode {
 	double fval;
 };
 
+// string array
+struct StringArray {
+	char **data;
+	int capacity;
+	int len;
+};
+
 // when error at thrvcc source code, print file_name and line_no
 #define unreachable() error_out("internal error at %s:%d", __FILE__, __LINE__)
 
@@ -247,6 +255,7 @@ extern struct Type *TyDouble;
 extern struct Type *TyVoid;
 extern struct Type *TyBool;
 
+void str_array_push(struct StringArray *arr, char *s);
 void error_out(char *fmt, ...);
 void verror_at(int line_no, char *location, char *fmt, va_list va);
 void error_at(char *location, char *fmt, ...);

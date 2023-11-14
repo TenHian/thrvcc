@@ -1,5 +1,6 @@
 CFLAGS=-std=c11 -g -fno-common
 CC=gcc
+RVCC=riscv64-elf-gcc
 
 SRCS=$(wildcard *.c)
 OBJS=$(SRCS:.c=.o)
@@ -12,8 +13,8 @@ thrvcc: $(OBJS)
 $(OBJS): thrvcc.h
 
 test/%.exe: thrvcc test/%.c
-	riscv64-elf-gcc -o- -E -P -C test/$*.c | ./thrvcc -o test/$*.s -
-	riscv64-elf-gcc -static -o $@ test/$*.s -xc test/common
+	$(RVCC) -o- -E -P -C test/$*.c | ./thrvcc -o test/$*.o -
+	$(RVCC) -static -o $@ test/$*.o -xc test/common
 
 test: $(TESTS)
 	for i in $^; do echo $$i; qemu-riscv64 ./$$i || exit 1; echo; done

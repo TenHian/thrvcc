@@ -39,4 +39,19 @@ check -o
 # pass --help into check()
 check --help
 
+# -S
+echo 'int main() {}' | ./thrvcc -S -o - - | grep -q 'main:'
+check -S
+
+# default output file
+rm -f $tmp/out.o $tmp/out.s
+echo 'int main() {}' > $tmp/out.c
+(./thrvcc $tmp/out.c > $tmp/out.o)
+[ -f $tmp/out.o ]
+check 'default output file'
+
+(./thrvcc -S $tmp/out.c > $tmp/out.s)
+[ -f $tmp/out.s ]
+check 'default output file'
+
 echo OK
