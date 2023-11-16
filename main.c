@@ -1,13 +1,5 @@
 #include "thrvcc.h"
-#include <errno.h>
-#include <libgen.h>
-#include <math.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 // [attention]
 // if you are cross-compiling, change this path to the path corresponding to ricsv toolchain
@@ -24,11 +16,17 @@ static bool OptCC1;
 // -###
 static bool OptHashHashHash;
 
-// Target file path
-static char *TargetPath;
+// -o
+static char *OptO;
 
-// Input file path
-static char *InputPath;
+// input file name
+static char *BaseFile;
+
+// output file name
+static char *OutputFile;
+
+// Input file area
+static struct StringArray InputPaths;
 
 // temporary files
 static struct StringArray TmpFiles;
@@ -40,9 +38,21 @@ static void usage(int status)
 	exit(status);
 }
 
+// determines whether an option that takes one parameter has a single parameter
+static bool take_arg(char *arg)
+{
+	return !strcmp(arg, "-o");
+}
+
 // parse the args passed in
 static void parse_args(int argc, char **argv)
 {
+	// make sure that option that require one parameter, exist a parameter
+	for (int i = 1; i < argc; i++)
+		if (take_arg(argv[i]))
+			if (!argv[++i])
+				usage(1);
+
 	// Iterate over all parameters passed into the program
 	for (int i = 1; i < argc; i++) {
 		// -###
@@ -63,18 +73,15 @@ static void parse_args(int argc, char **argv)
 
 		// parse "-o XXX" args
 		if (!strcmp(argv[i], "-o")) {
-			// target file not exist, error
-			if (!argv[++i])
-				usage(1);
 			// target file path
-			TargetPath = argv[i];
+			OptO = argv[++i];
 			continue;
 		}
 
 		// parse "-oXXX" args
 		if (!strncmp(argv[i], "-o", 2)) {
 			// target file path
-			TargetPath = argv[i] + 2;
+			OptO = argv[i] + 2;
 			continue;
 		}
 
@@ -84,15 +91,27 @@ static void parse_args(int argc, char **argv)
 			continue;
 		}
 
+		// parse -cc1-input
+		if (!strcmp(argv[i], "-cc1-input")) {
+			BaseFile = argv[++i];
+			continue;
+		}
+
+		// parse -cc1-output
+		if (!strcmp(argv[i], "-cc1-output")) {
+			OutputFile = argv[++i];
+			continue;
+		}
+
 		// parse "-" args
 		if (argv[i][0] == '-' && argv[i][1] != '\0')
 			error_out("unknown argument: %s", argv[i]);
 
 		// others, input file path
-		InputPath = argv[i];
+		str_array_push(&InputPaths, argv[i]);
 	}
 	// if InputPath not exist, error
-	if (!InputPath)
+	if (InputPaths.len == 0)
 		error_out("no input files");
 }
 
@@ -186,11 +205,13 @@ static void run_cc1(int argc, char **argv, char *input, char *output)
 	// add '-cc1'
 	args[argc++] = "-cc1";
 
-	if (input)
+	if (input) {
+		args[argc++] = "-cc1-input";
 		args[argc++] = input;
+	}
 
 	if (output) {
-		args[argc++] = "-o";
+		args[argc++] = "-cc1-output";
 		args[argc++] = output;
 	}
 
@@ -202,14 +223,14 @@ static void run_cc1(int argc, char **argv, char *input, char *output)
 static void cc1(void)
 {
 	// parse input file, gen token stream
-	struct Token *token = lexer_file(InputPath);
+	struct Token *token = lexer_file(BaseFile);
 
 	// parse gen ast
 	struct Obj_Var *prog = parse(token);
 
-	FILE *out = open_file(TargetPath);
+	FILE *out = open_file(OutputFile);
 	// .file, file number, file name
-	fprintf(out, ".file 1 \"%s\"\n", InputPath);
+	fprintf(out, ".file 1 \"%s\"\n", BaseFile);
 	codegen(prog, out);
 }
 
@@ -248,24 +269,35 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	char *output;
-	if (TargetPath)
-		output = TargetPath;
-	else if (OptS)
-		output = replace_extn(InputPath, ".s");
-	else
-		output = replace_extn(InputPath, ".o");
+	// currently, it is not possible to output multiple input files
+	// to a single file
+	if (InputPaths.len > 1 && OptO)
+		error_out("cannot specify '-o' with multiple files");
 
-	// if '-S', call cc1
-	if (OptS) {
-		run_cc1(argc, argv, InputPath, output);
-		return 0;
+	// iterate though all input file
+	for (int i = 0; i < InputPaths.len; i++) {
+		// read input file
+		char *input = InputPaths.data[i];
+
+		char *output;
+		if (OptO)
+			output = OptO;
+		else if (OptS)
+			output = replace_extn(input, ".s");
+		else
+			output = replace_extn(input, ".o");
+
+		// if '-S', call cc1
+		if (OptS) {
+			run_cc1(argc, argv, input, output);
+			continue;
+		}
+
+		// else call cc1 and as
+		char *tmp_file = create_tmpfile();
+		run_cc1(argc, argv, input, tmp_file);
+		assembler(tmp_file, output);
 	}
-
-	// else call cc1 and as
-	char *tmp_file = create_tmpfile();
-	run_cc1(argc, argv, InputPath, tmp_file);
-	assembler(tmp_file, output);
 
 	return 0;
 }
