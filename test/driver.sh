@@ -25,7 +25,7 @@ check() {
 # clean the out file in $tmp
 rm -f $tmp/out
 # compile to generate out file
-./thrvcc -o $tmp/out $tmp/empty.c
+./thrvcc -c -o $tmp/out $tmp/empty.c
 # conditional judgment, whether there is out file
 [ -f $tmp/out ]
 # pass -o into check()
@@ -46,11 +46,11 @@ check -S
 # default output file
 rm -f $tmp/out.o $tmp/out.s
 echo 'int main() {}' > $tmp/out.c
-(./thrvcc $tmp/out.c > $tmp/out.o)
+(./thrvcc -c $tmp/out.c > $tmp/out.o)
 [ -f $tmp/out.o ]
 check 'default output file'
 
-(./thrvcc -S $tmp/out.c > $tmp/out.s)
+(./thrvcc -c -S $tmp/out.c > $tmp/out.s)
 [ -f $tmp/out.s ]
 check 'default output file'
 
@@ -58,15 +58,43 @@ check 'default output file'
 rm -f $tmp/foo.o $tmp/bar.o
 echo 'int x;' > $tmp/foo.c
 echo 'int y;' > $tmp/bar.c
-(cd $tmp; $OLDPWD/thrvcc $tmp/foo.c $tmp/bar.c)
+(cd $tmp; $OLDPWD/thrvcc -c $tmp/foo.c $tmp/bar.c)
 [ -f $tmp/foo.c ] && [ -f $tmp/bar.o ]
 check 'multiple input files'
 
 rm -f $tmp/foo.s $tmp/bar.s
 echo 'int x;' > $tmp/foo.c
 echo 'int y;' > $tmp/bar.c
-(cd $tmp; $OLDPWD/thrvcc -S $tmp/foo.c $tmp/bar.c)
+(cd $tmp; $OLDPWD/thrvcc -c -S $tmp/foo.c $tmp/bar.c)
 [ -f $tmp/foo.s ] && [ -f $tmp/bar.s ]
 check 'multiple input files'
+
+# [155] call ld when no -c by default
+rm -f $tmp/foo
+echo 'int main() { return 0; }' | ./thrvcc -o $tmp/foo -
+if [ "$RISCV" = "" ];then
+        $tmp/foo
+else
+        $RISCV/bin/qemu-riscv64 -L $RISCV/sysroot $tmp/foo
+fi
+check linker
+
+rm -f $tmp/foo
+echo 'int bar(); int main() { return bar(); }' > $tmp/foo.c
+echo 'int bar() { return 42; }' > $tmp/bar.c
+./thrvcc -o $tmp/foo $tmp/foo.c $tmp/bar.c
+if [ "$RISCV" = "" ];then
+        $tmp/foo
+else
+        $RISCV/bin/qemu-riscv64 -L $RISCV/sysroot $tmp/foo
+fi
+[ "$?" = 42 ]
+check linker
+
+rm -f $tmp/a.out
+echo 'int main() {}' > $tmp/foo.c
+(cd $tmp; $OLDPWD/thrvcc foo.c)
+[ -f $tmp/a.out ]
+check a.out
 
 echo OK

@@ -1,14 +1,22 @@
 #include "thrvcc.h"
+#include <glob.h>
+#include <libgen.h>
+#include <stdbool.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <time.h>
 
 // [attention]
 // if you are cross-compiling, change this path to the path corresponding to ricsv toolchain
 // must be an absulte path
 // else leave it empty
-static char *RVPath = "/usr";
+static char *RVPath = "/home/tenhian/riscv";
 
 // -S
 static bool OptS;
+
+// -c
+static bool OptC;
 
 // -cc1
 static bool OptCC1;
@@ -91,6 +99,12 @@ static void parse_args(int argc, char **argv)
 			continue;
 		}
 
+		// parse -c
+		if (!strcmp(argv[i], "-c")) {
+			OptC = true;
+			continue;
+		}
+
 		// parse -cc1-input
 		if (!strcmp(argv[i], "-cc1-input")) {
 			BaseFile = argv[++i];
@@ -129,6 +143,13 @@ static FILE *open_file(char *path)
 	return out;
 }
 
+// determine if the string P ends with the string Q
+static bool ends_with(char *P, char *Q)
+{
+	int len1 = strlen(P);
+	int len2 = strlen(Q);
+	return (len1 >= len2) && !strcmp(P + len1 - len2, Q);
+}
 // replace file extern name
 static char *replace_extn(char *tmpl, char *extn)
 {
@@ -237,10 +258,142 @@ static void cc1(void)
 // call assembler
 static void assembler(char *input, char *output)
 {
-	char *as = strlen(RVPath) ? format("%s/bin/riscv64-elf-as", RVPath) :
-				    "as";
+	char *as =
+		strlen(RVPath) ?
+			format("%s/bin/riscv64-unknown-linux-gnu-as", RVPath) :
+			"as";
 	char *cmd[] = { as, "-c", input, "-o", output, NULL };
 	run_subprocess(cmd);
+}
+
+static char *find_file(char *pattern)
+{
+	char *path = NULL;
+	glob_t buf = {};
+	glob(pattern, 0, NULL, &buf);
+	if (buf.gl_pathc > 0)
+		path = strdup(buf.gl_pathv[buf.gl_pathc - 1]);
+	globfree(&buf);
+	return path;
+}
+
+static bool file_exists(char *path)
+{
+	struct stat st;
+	return !stat(path, &st);
+}
+
+static char *find_lib_path(void)
+{
+	if (strlen(RVPath)) {
+		if (file_exists(format("%s/sysroot/usr/lib/crti.o", RVPath)))
+			return format("%s/sysroot/usr/lib", RVPath);
+	} else {
+		if (file_exists("/usr/lib/riscv64-linux-gnu/crti.o"))
+			return "/usr/lib/riscv64-linux-gnu";
+		if (file_exists("/usr/lib64/crti.o"))
+			return "/usr/lib64";
+	}
+
+	error_out("library path is not find");
+	return NULL;
+}
+
+static char *find_gcc_lib_path(void)
+{
+	char *paths[] = {
+		// cross-compiling
+		format("%s/lib/gcc/riscv64-unknown-linux-gnu/*/crtbegin.o",
+		       RVPath),
+		"/usr/lib/gcc/riscv64-linux-gnu/*/crtbegin.o",
+		//Gentoo
+		"/usr/lib/gcc/riscv64-pc-linux-gnu/*/crtbegin.o",
+		// Fedora
+		"/usr/lib/gcc/riscv64-redhat-linux/*/crtbegin.o",
+
+	};
+
+	for (int i = 0; i < sizeof(paths) / sizeof(*paths); i++) {
+		char *path = find_file(paths[i]);
+		if (path)
+			return dirname(path);
+	}
+
+	error_out("gcc library path is not found");
+	return NULL;
+}
+
+static void run_linker(struct StringArray *inputs, char *output)
+{
+	// args need be passed to ld
+	struct StringArray arr = {};
+
+	char *ld =
+		strlen(RVPath) ?
+			format("%s/bin/riscv64-unknown-linux-gnu-ld", RVPath) :
+			"ld";
+	str_array_push(&arr, ld);
+	str_array_push(&arr, "-o");
+	str_array_push(&arr, output);
+	str_array_push(&arr, "-m");
+	str_array_push(&arr, "elf64lriscv");
+	str_array_push(&arr, "-dynamic-linker");
+
+	char *lp64d =
+		strlen(RVPath) ?
+			format("%s/sysroot/lib/ld-linux-riscv64-lp64d.so.1",
+			       RVPath) :
+			"/lib/ld-linux-riscv64-lp64d.so.1";
+	str_array_push(&arr, lp64d);
+
+	char *lib_path = find_lib_path();
+	char *gcc_lib_path = find_gcc_lib_path();
+
+	str_array_push(&arr, format("%s/crt1.o", lib_path));
+	str_array_push(&arr, format("%s/crti.o", lib_path));
+	str_array_push(&arr, format("%s/crtbegin.o", gcc_lib_path));
+	str_array_push(&arr, format("-L%s", gcc_lib_path));
+	str_array_push(&arr, format("-L%s", lib_path));
+	str_array_push(&arr, format("-L%s/..", lib_path));
+	if (strlen(RVPath)) {
+		str_array_push(&arr, format("-L%s/sysroot/usr/lib64", RVPath));
+		str_array_push(&arr, format("-L%s/sysroot/lib64", RVPath));
+		str_array_push(&arr,
+			       format("-L%s/sysroot/usr/lib/riscv64-linux-gnu",
+				      RVPath));
+		str_array_push(
+			&arr,
+			format("-L%s/sysroot/usr/lib/riscv64-pc-linux-gnu",
+			       RVPath));
+		str_array_push(
+			&arr,
+			format("-L%s/sysroot/usr/lib/riscv64-redhat-linux",
+			       RVPath));
+		str_array_push(&arr, format("-L%s/sysroot/usr/lib", RVPath));
+		str_array_push(&arr, format("-L%s/sysroot/lib", RVPath));
+	} else {
+		str_array_push(&arr, "-L/usr/lib64");
+		str_array_push(&arr, "-L/lib64");
+		str_array_push(&arr, "-L/usr/lib/riscv64-linux-gnu");
+		str_array_push(&arr, "-L/usr/lib/riscv64-pc-linux-gnu");
+		str_array_push(&arr, "-L/usr/lib/riscv64-redhat-linux");
+		str_array_push(&arr, "-L/usr/lib");
+		str_array_push(&arr, "-L/lib");
+	}
+
+	for (int i = 0; i < inputs->len; i++)
+		str_array_push(&arr, inputs->data[i]);
+
+	str_array_push(&arr, "-lc");
+	str_array_push(&arr, "-lgcc");
+	str_array_push(&arr, "--as-needed");
+	str_array_push(&arr, "-lgcc_s");
+	str_array_push(&arr, "--no-as-needed");
+	str_array_push(&arr, format("%s/crtend.o", gcc_lib_path));
+	str_array_push(&arr, format("%s/crtn.o", lib_path));
+	str_array_push(&arr, NULL);
+
+	run_subprocess(arr.data);
 }
 
 // Compiler Driven Flow
@@ -270,9 +423,13 @@ int main(int argc, char *argv[])
 	}
 
 	// currently, it is not possible to output multiple input files
-	// to a single file
-	if (InputPaths.len > 1 && OptO)
-		error_out("cannot specify '-o' with multiple files");
+	// to a single file after -c -S
+	if (InputPaths.len > 1 && OptO && (OptC || OptS))
+		error_out(
+			"cannot specify '-o' with '-c' or '-S' with multiple files");
+
+	// ld's args
+	struct StringArray ld_args = {};
 
 	// iterate though all input file
 	for (int i = 0; i < InputPaths.len; i++) {
@@ -287,17 +444,48 @@ int main(int argc, char *argv[])
 		else
 			output = replace_extn(input, ".o");
 
+		// .o
+		if (ends_with(input, ".o")) {
+			str_array_push(&ld_args, input);
+			continue;
+		}
+
+		// .s
+		if (ends_with(input, ".s")) {
+			if (!OptS)
+				assembler(input, output);
+			continue;
+		}
+
+		// .c
+		if (!ends_with(input, ".c") && strcmp(input, "-"))
+			error_out("unknown file extension: %s", input);
+
 		// if '-S', call cc1
 		if (OptS) {
 			run_cc1(argc, argv, input, output);
 			continue;
 		}
 
+		// compile and assemble
+		if (OptC) {
+			char *tmp = create_tmpfile();
+			run_cc1(argc, argv, input, tmp);
+			assembler(tmp, output);
+			continue;
+		}
+
 		// else call cc1 and as
-		char *tmp_file = create_tmpfile();
-		run_cc1(argc, argv, input, tmp_file);
-		assembler(tmp_file, output);
+		char *tmp1 = create_tmpfile();
+		char *tmp2 = create_tmpfile();
+		run_cc1(argc, argv, input, tmp1);
+		assembler(tmp1, tmp2);
+		str_array_push(&ld_args, tmp2);
+		continue;
 	}
+
+	if (ld_args.len > 0)
+		run_linker(&ld_args, OptO ? OptO : "a.out");
 
 	return 0;
 }
