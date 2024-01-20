@@ -6,11 +6,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-// [attention]
-// if you are cross-compiling, change this path to the path corresponding to ricsv toolchain
-// must be an absulte path
-// else leave it empty
-static char *RVPath = "/home/tenhian/riscv";
+static char *RVPath = "";
 
 // -S
 static bool OptS;
@@ -258,10 +254,11 @@ static void cc1(void)
 // call assembler
 static void assembler(char *input, char *output)
 {
-	char *as =
-		strlen(RVPath) ?
-			format("%s/bin/riscv64-unknown-linux-gnu-as", RVPath) :
-			"as";
+#ifdef RVPATH
+	char *as = format("%s/bin/riscv64-unknown-linux-gnu-as", RVPath);
+#else
+	char *as = "as";
+#endif /* ifdef RVPATH */
 	char *cmd[] = { as, "-c", input, "-o", output, NULL };
 	run_subprocess(cmd);
 }
@@ -285,15 +282,16 @@ static bool file_exists(char *path)
 
 static char *find_lib_path(void)
 {
-	if (strlen(RVPath)) {
-		if (file_exists(format("%s/sysroot/usr/lib/crti.o", RVPath)))
-			return format("%s/sysroot/usr/lib", RVPath);
-	} else {
-		if (file_exists("/usr/lib/riscv64-linux-gnu/crti.o"))
-			return "/usr/lib/riscv64-linux-gnu";
-		if (file_exists("/usr/lib64/crti.o"))
-			return "/usr/lib64";
-	}
+#ifdef RVPATH
+	if (file_exists(format("%s/sysroot/usr/lib/crti.o", RVPath)))
+		return format("%s/sysroot/usr/lib", RVPath);
+#else
+	if (file_exists("/usr/lib/riscv64-linux-gnu/crti.o"))
+		return "/usr/lib/riscv64-linux-gnu";
+	if (file_exists("/usr/lib64/crti.o"))
+		return "/usr/lib64";
+
+#endif /* ifdef RVPATH */
 
 	error_out("library path is not find");
 	return NULL;
@@ -301,16 +299,19 @@ static char *find_lib_path(void)
 
 static char *find_gcc_lib_path(void)
 {
+#ifdef RVPATH
+	char *path = find_file(format(
+		"%s/lib/gcc/riscv64-unknown-linux-gnu/*/crtbegin.o", RVPath));
+	if (path)
+		return dirname(path);
+#endif /* ifdef RVPATH */
+
 	char *paths[] = {
-		// cross-compiling
-		format("%s/lib/gcc/riscv64-unknown-linux-gnu/*/crtbegin.o",
-		       RVPath),
-		"/usr/lib/gcc/riscv64-linux-gnu/*/crtbegin.o",
+		"/usr/lib/gcc/riscv64-linux-gnu/*/crtbegin.o ",
 		//Gentoo
 		"/usr/lib/gcc/riscv64-pc-linux-gnu/*/crtbegin.o",
 		// Fedora
 		"/usr/lib/gcc/riscv64-redhat-linux/*/crtbegin.o",
-
 	};
 
 	for (int i = 0; i < sizeof(paths) / sizeof(*paths); i++) {
@@ -328,10 +329,11 @@ static void run_linker(struct StringArray *inputs, char *output)
 	// args need be passed to ld
 	struct StringArray arr = {};
 
-	char *ld =
-		strlen(RVPath) ?
-			format("%s/bin/riscv64-unknown-linux-gnu-ld", RVPath) :
-			"ld";
+#ifdef RVPATH
+	char *ld = format("%s/bin/riscv64-unknown-linux-gnu-ld", RVPath);
+#else
+	char *ld = "ld";
+#endif /* ifdef RVPATH */
 	str_array_push(&arr, ld);
 	str_array_push(&arr, "-o");
 	str_array_push(&arr, output);
@@ -339,11 +341,12 @@ static void run_linker(struct StringArray *inputs, char *output)
 	str_array_push(&arr, "elf64lriscv");
 	str_array_push(&arr, "-dynamic-linker");
 
+#ifdef RVPATH
 	char *lp64d =
-		strlen(RVPath) ?
-			format("%s/sysroot/lib/ld-linux-riscv64-lp64d.so.1",
-			       RVPath) :
-			"/lib/ld-linux-riscv64-lp64d.so.1";
+		format("%s/sysroot/lib/ld-linux-riscv64-lp64d.so.1", RVPath);
+#else
+	char *lp64d = "/lib/ld-linux-riscv64-lp64d.so.1";
+#endif /* ifdef RVPATH */
 	str_array_push(&arr, lp64d);
 
 	char *lib_path = find_lib_path();
@@ -355,31 +358,26 @@ static void run_linker(struct StringArray *inputs, char *output)
 	str_array_push(&arr, format("-L%s", gcc_lib_path));
 	str_array_push(&arr, format("-L%s", lib_path));
 	str_array_push(&arr, format("-L%s/..", lib_path));
-	if (strlen(RVPath)) {
-		str_array_push(&arr, format("-L%s/sysroot/usr/lib64", RVPath));
-		str_array_push(&arr, format("-L%s/sysroot/lib64", RVPath));
-		str_array_push(&arr,
-			       format("-L%s/sysroot/usr/lib/riscv64-linux-gnu",
-				      RVPath));
-		str_array_push(
-			&arr,
-			format("-L%s/sysroot/usr/lib/riscv64-pc-linux-gnu",
-			       RVPath));
-		str_array_push(
-			&arr,
-			format("-L%s/sysroot/usr/lib/riscv64-redhat-linux",
-			       RVPath));
-		str_array_push(&arr, format("-L%s/sysroot/usr/lib", RVPath));
-		str_array_push(&arr, format("-L%s/sysroot/lib", RVPath));
-	} else {
-		str_array_push(&arr, "-L/usr/lib64");
-		str_array_push(&arr, "-L/lib64");
-		str_array_push(&arr, "-L/usr/lib/riscv64-linux-gnu");
-		str_array_push(&arr, "-L/usr/lib/riscv64-pc-linux-gnu");
-		str_array_push(&arr, "-L/usr/lib/riscv64-redhat-linux");
-		str_array_push(&arr, "-L/usr/lib");
-		str_array_push(&arr, "-L/lib");
-	}
+#ifdef RVPATH
+	str_array_push(&arr, format("-L%s/sysroot/usr/lib64", RVPath));
+	str_array_push(&arr, format("-L%s/sysroot/lib64", RVPath));
+	str_array_push(&arr, format("-L%s/sysroot/usr/lib/riscv64-linux-gnu",
+				    RVPath));
+	str_array_push(&arr, format("-L%s/sysroot/usr/lib/riscv64-pc-linux-gnu",
+				    RVPath));
+	str_array_push(&arr, format("-L%s/sysroot/usr/lib/riscv64-redhat-linux",
+				    RVPath));
+	str_array_push(&arr, format("-L%s/sysroot/usr/lib", RVPath));
+	str_array_push(&arr, format("-L%s/sysroot/lib", RVPath));
+#else
+	str_array_push(&arr, "-L/usr/lib64");
+	str_array_push(&arr, "-L/lib64");
+	str_array_push(&arr, "-L/usr/lib/riscv64-linux-gnu");
+	str_array_push(&arr, "-L/usr/lib/riscv64-pc-linux-gnu");
+	str_array_push(&arr, "-L/usr/lib/riscv64-redhat-linux");
+	str_array_push(&arr, "-L/usr/lib");
+	str_array_push(&arr, "-L/lib");
+#endif /* ifdef RVPATH */
 
 	for (int i = 0; i < inputs->len; i++)
 		str_array_push(&arr, inputs->data[i]);
@@ -410,6 +408,12 @@ static void run_linker(struct StringArray *inputs, char *output)
 
 int main(int argc, char *argv[])
 {
+#ifdef RVPATH
+	RVPath = getenv("RISCV");
+	if (RVPath == NULL)
+		error_out("riscv not find");
+#endif /* ifdef MACRO */
+
 	// call cleanup() when program end
 	atexit(cleanup);
 

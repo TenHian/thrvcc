@@ -8,35 +8,32 @@ A C compiler for the risc-v instruction set, with features being refined.
 
 ### Install Dependencies
 
-Archlinux
+base dev tools:
 
 ```bash
 sudo pacman -S base-devel
-sudo pacman -S riscv64-elf-binutils riscv64-elf-gcc riscv64-elf-gdb riscv64-elf-newlib
-sudo pacman -S qemu-full
+```
+
+riscv cross compilation tool chain:
+
+```bash
+# for tool chain dependencies, see https://github.com/riscv-collab/riscv-gnu-toolchain#prerequisites
+curl https://mirror.iscas.ac.cn/riscv-toolchains/git/riscv-collab/riscv-gnu-toolchain.sh | bash
+cd riscv-gnu-toolchain
+mkdir build
+cd build
+../configure --prefix=$HOME/riscv
+make -j$(nproc)
 ```
 
 ### Build with Makefile
 
-> Attention!!!
-> 
-> If you want to compile this project from source code, you should read the Makefile carefully. In addition, there are the following points to note:
-> 
-> 1. I developed this program on ArchLinux x86_64, and ArchLinux provides a comprehensive package, so I was able to get the riscv cross-compilation toolchain directly from pacman. If you can't use pacman, make sure there are no problems with your cross-compilation toolchain.
-> 
-> 2. Check the following snippet in main.c:  
->    
->    ```c
->    // [attention]
->    // if you are cross-compiling, change this path to the path corresponding to ricsv toolchain
->    // must be an absulte path
->    // else leave it empty
->    static char *RVPath = "/usr";
->    ```
->    
->    If you cross-compile, make sure RVPath is your riscv toolchain path, such as "RVPath/bin/riscv64-elf-as". If you compile on RISC-V machine, *RVPath = "".
-
 ```bash
+cd thrvcc
+# if cross compile
+export RISCV=~/riscv
+# if local riscv
+export RISCV=
 # binary
 make thrvcc
 # test

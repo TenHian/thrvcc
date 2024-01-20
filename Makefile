@@ -1,6 +1,14 @@
 CFLAGS=-std=c11 -g -fno-common
 CC=gcc
-RVCC=$(RISCV)/bin/riscv64-unknown-linux-gnu-gcc
+COCP=$(RISCV)
+ifdef COCP
+	RVCC=$(RISCV)/bin/riscv64-unknown-linux-gnu-gcc
+	QEMU=$(RISCV)/bin/qemu-riscv64 -L $(RISCV)/sysroot 
+	CFLAGS+= -DRVPATH=$(RISCV)
+else
+	RVCC=gcc
+	QEMU=qemu-riscv64
+endif
 
 SRCS=$(wildcard *.c)
 OBJS=$(SRCS:.c=.o)
@@ -17,7 +25,7 @@ test/%.exe: thrvcc test/%.c
 	$(RVCC) -static -o $@ test/$*.o -xc test/common
 
 test: $(TESTS)
-	for i in $^; do echo $$i; $(RISCV)/bin/qemu-riscv64 -L $(RISCV)/sysroot ./$$i || exit 1; echo; done
+	for i in $^; do echo $$i; $(QEMU) ./$$i || exit 1; echo; done
 	test/driver.sh
 
 clean:
