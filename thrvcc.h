@@ -114,6 +114,7 @@ struct Token {
 	char *str;
 
 	int line_no; // line number
+	bool at_bol; // terminator is true if at begin of line
 };
 
 struct Type {

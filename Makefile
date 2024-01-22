@@ -20,6 +20,10 @@ thrvcc: $(OBJS)
 
 $(OBJS): thrvcc.h
 
+test/macro.exe: thrvcc test/macro.c
+	./thrvcc -c -o test/macro.o test/macro.c
+	$(RVCC) -o $@ test/macro.o -xc test/common
+
 test/%.exe: thrvcc test/%.c
 	$(RVCC) -o- -E -P -C test/$*.c | ./thrvcc -c -o test/$*.o -
 	$(RVCC) -static -o $@ test/$*.o -xc test/common

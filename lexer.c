@@ -1,12 +1,8 @@
 #include "thrvcc.h"
-#include <ctype.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
 
 static char *CurLexStream; // reg the cur lexing stream
 static char *SourceFile; // current lexing file
+static bool AtBOL; // true if at begin of line
 
 void error_out(char *fmt, ...)
 {
@@ -104,6 +100,8 @@ static struct Token *new_token(enum TokenKind Kind, char *start, char *end)
 	token->kind = Kind;
 	token->location = start;
 	token->len = end - start;
+	token->at_bol = AtBOL;
+	AtBOL = false;
 	return token;
 }
 
@@ -450,6 +448,7 @@ struct Token *lexer(char *filename, char *formula)
 	CurLexStream = formula;
 	struct Token head = {};
 	struct Token *cur = &head;
+	AtBOL = true;
 
 	while (*formula) {
 		// skip comment lines
@@ -467,6 +466,13 @@ struct Token *lexer(char *filename, char *formula)
 			if (!block_end)
 				error_at(formula, "unclosed block comment");
 			formula = block_end + 2;
+			continue;
+		}
+
+		// match line break, set begin of line
+		if (*formula == '\n') {
+			formula++;
+			AtBOL = true;
 			continue;
 		}
 
