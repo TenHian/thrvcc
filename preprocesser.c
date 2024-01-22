@@ -69,9 +69,16 @@ static struct Token *preprocess(struct Token *token)
 			if (token->kind != TK_STR)
 				error_token(token, "expected a filename");
 
-			char *path = format("%s/%s",
-					    dirname(strdup(token->file->name)),
-					    token->str);
+			char *path;
+			if (token->str[0] == '/')
+				// absolute path
+				path = token->str;
+			else
+				path = format(
+					"%s/%s",
+					dirname(strdup(token->file->name)),
+					token->str);
+
 			struct Token *token2 = lexer_file(path);
 			if (!token2)
 				error_token(token, "%s", strerror(errno));

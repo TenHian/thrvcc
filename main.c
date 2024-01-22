@@ -3,12 +3,15 @@
 #include <glob.h>
 #include <libgen.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
 
 static char *RVPath = "";
 
+// -E
+static bool OptE;
 // -S
 static bool OptS;
 
@@ -99,6 +102,12 @@ static void parse_args(int argc, char **argv)
 		// parse -c
 		if (!strcmp(argv[i], "-c")) {
 			OptC = true;
+			continue;
+		}
+
+		// parse -E
+		if (!strcmp(argv[i], "-E")) {
+			OptE = true;
 			continue;
 		}
 
@@ -237,6 +246,23 @@ static void run_cc1(int argc, char **argv, char *input, char *output)
 	run_subprocess(args);
 }
 
+// when -E, print all therminators
+static void print_tokens(struct Token *token)
+{
+	// default output stdout
+	FILE *out = open_file(OptO ? OptO : "-");
+
+	// reg line numbers
+	int line = 1;
+	for (; token->kind != TK_EOF; token = token->next) {
+		if (line > 1 && token->at_bol)
+			fprintf(out, "\n");
+		fprintf(out, " %.*s", token->len, token->location);
+		line++;
+	}
+	fprintf(out, "\n");
+}
+
 // compile C to asm
 static void cc1(void)
 {
@@ -248,6 +274,12 @@ static void cc1(void)
 
 	// preprocess
 	token = preprocesser(token);
+
+	// if -E, print C code after preprocess
+	if (OptE) {
+		print_tokens(token);
+		return;
+	}
 
 	// parse gen ast
 	struct Obj_Var *prog = parse(token);
@@ -432,10 +464,10 @@ int main(int argc, char *argv[])
 	}
 
 	// currently, it is not possible to output multiple input files
-	// to a single file after -c -S
-	if (InputPaths.len > 1 && OptO && (OptC || OptS))
+	// to a single file after -c -S -E
+	if (InputPaths.len > 1 && OptO && (OptC || OptS || OptE))
 		error_out(
-			"cannot specify '-o' with '-c' or '-S' with multiple files");
+			"cannot specify '-o' with '-c', '-S' or '-E' with multiple files");
 
 	// ld's args
 	struct StringArray ld_args = {};
@@ -469,6 +501,11 @@ int main(int argc, char *argv[])
 		// .c
 		if (!ends_with(input, ".c") && strcmp(input, "-"))
 			error_out("unknown file extension: %s", input);
+
+		if (OptE) {
+			run_cc1(argc, argv, input, NULL);
+			continue;
+		}
 
 		// if '-S', call cc1
 		if (OptS) {
