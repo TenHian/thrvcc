@@ -268,6 +268,7 @@ char *format(char *fmt, ...);
 bool equal(struct Token *token, char *str);
 struct Token *skip(struct Token *token, char *str);
 bool consume(struct Token **rest, struct Token *token, char *str);
+void convert_keywords(struct Token *token);
 bool is_integer(struct Type *type);
 bool is_float(struct Type *type);
 bool is_numeric(struct Type *type);
@@ -289,6 +290,8 @@ int align_to(int N, int Align);
 struct AstNode *new_cast(struct AstNode *expr, struct Type *type);
 // Lexical analysis
 struct Token *lexer_file(char *path);
+// preprocesser
+struct Token *preprocesser(struct Token *token);
 // Grammatical analysis
 struct Obj_Var *parse(struct Token *token);
 // Code Generation

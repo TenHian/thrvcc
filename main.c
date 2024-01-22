@@ -242,6 +242,9 @@ static void cc1(void)
 	// parse input file, gen token stream
 	struct Token *token = lexer_file(BaseFile);
 
+	// preprocess
+	token = preprocesser(token);
+
 	// parse gen ast
 	struct Obj_Var *prog = parse(token);
 

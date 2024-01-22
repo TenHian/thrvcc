@@ -87,9 +87,9 @@ other
 - [x] break continue goto return
 - [x] if else switch case default
 - [x] do for while
-- [ ] char✔ double✔ float✔ int✔ long✔ register short✔ void✔
+- [x] char✔ double✔ float✔ int✔ long✔ register✔ short✔ void✔
 - [x] enum struct typedef union
-- [ ] const extern✔ signed✔ unsigned✔ static✔ volatile
+- [x] const✔ extern✔ signed✔ unsigned✔ static✔ volatile✔
 
 c99
 

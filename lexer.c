@@ -419,7 +419,7 @@ static struct Token *read_number(char *start)
 }
 
 // convert the terminator named "return" to KEYWORD
-static void convert_keyword(struct Token *token)
+void convert_keywords(struct Token *token)
 {
 	for (struct Token *t = token; t->kind != TK_EOF; t = t->next) {
 		if (is_keyword(t))
@@ -530,8 +530,6 @@ struct Token *lexer(char *filename, char *formula)
 	cur->next = new_token(TK_EOF, formula, formula);
 	// add line number for all token
 	add_line_numbers(head.next);
-	// turn all of keyword that terminator into keyword
-	convert_keyword(head.next);
 	return head.next;
 }
 
