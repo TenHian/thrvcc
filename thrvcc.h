@@ -270,6 +270,7 @@ void str_array_push(struct StringArray *arr, char *s);
 void error_out(char *fmt, ...);
 void error_at(char *location, char *fmt, ...);
 void error_token(struct Token *token, char *fmt, ...);
+void warn_token(struct Token *token, char *fmt, ...);
 // string format
 char *format(char *fmt, ...);
 // token recognition

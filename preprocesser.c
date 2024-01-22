@@ -10,6 +10,18 @@ static bool is_begin_hash(struct Token *token)
 	return token->at_bol && equal(token, "#");
 }
 
+// some preprocesser allow directives like #include to \
+// have redundant terminators before line breaks
+// skip those therminators
+static struct Token *skip_line(struct Token *token)
+{
+	if (token->at_bol)
+		return token;
+	warn_token(token, "extra token");
+	while (!token->at_bol)
+		token = token->next;
+	return token;
+}
 static struct Token *copy_token(struct Token *token)
 {
 	struct Token *t = calloc(1, sizeof(struct Token));
@@ -63,7 +75,8 @@ static struct Token *preprocess(struct Token *token)
 			struct Token *token2 = lexer_file(path);
 			if (!token2)
 				error_token(token, "%s", strerror(errno));
-			token = append(token2, token->next);
+			token = skip_line(token->next);
+			token = append(token2, token);
 			continue;
 		}
 

@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <stdarg.h>
 
 static struct File *CurLexStream; // reg the cur lexing stream
 static struct File **SourceFile; // current lexing file list
@@ -69,6 +70,16 @@ void error_token(struct Token *token, char *fmt, ...)
 	verror_at(token->file->name, token->file->contents, token->line_no,
 		  token->location, fmt, va);
 	exit(1);
+}
+
+// token lex warn
+void warn_token(struct Token *token, char *fmt, ...)
+{
+	va_list va;
+	va_start(va, fmt);
+	verror_at(token->file->name, token->file->contents, token->line_no,
+		  token->location, fmt, va);
+	va_end(va);
 }
 
 bool equal(struct Token *token, char *str)
