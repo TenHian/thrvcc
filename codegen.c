@@ -464,7 +464,7 @@ static void push_args(struct AstNode *args)
 static void gen_expr(struct AstNode *node)
 {
 	// .loc, file number, line number
-	println("  .loc 1 %d", node->tok->line_no);
+	println("  .loc 1 %d %d", node->tok->file->file_no, node->tok->line_no);
 
 	switch (node->kind) {
 	case ND_NULL_EXPR:
@@ -885,7 +885,7 @@ static void gen_expr(struct AstNode *node)
 static void gen_stmt(struct AstNode *node)
 {
 	// .loc, file number, line number
-	println("  .loc 1 %d", node->tok->line_no);
+	println("  .loc 1 %d %d", node->tok->file->file_no, node->tok->line_no);
 
 	switch (node->kind) {
 	// if stmt
@@ -1296,6 +1296,12 @@ void codegen(struct Obj_Var *prog, FILE *out)
 {
 	// set target file stream ptr
 	OutputFile = out;
+
+	// get all inputfile, output .file directive
+	struct File **files = get_input_files();
+	for (int i = 0; files[i]; i++)
+		println("  .file %d \"%s\"", files[i]->file_no, files[i]->name);
+
 	// calculate Obj_Var offset
 	assign_lvar_offsets(prog);
 	// gen data

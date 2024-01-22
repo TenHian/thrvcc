@@ -1,7 +1,7 @@
 #include "thrvcc.h"
 
-static char *CurLexStream; // reg the cur lexing stream
-static char *SourceFile; // current lexing file
+static struct File *CurLexStream; // reg the cur lexing stream
+static struct File **SourceFile; // current lexing file list
 static bool AtBOL; // true if at begin of line
 
 void error_out(char *fmt, ...)
@@ -17,7 +17,8 @@ void error_out(char *fmt, ...)
 // output error message, exit.
 // foo.c:10: x = y + 1;
 //               ^ <error message>
-void verror_at(int line_no, char *location, char *fmt, va_list va)
+static void verror_at(char *filename, char *input, int line_no, char *location,
+		      char *fmt, va_list va)
 {
 	// find line that in location
 	char *line = location;
@@ -25,7 +26,7 @@ void verror_at(int line_no, char *location, char *fmt, va_list va)
 	// line<CurLexStream, determines if the file is read at the beginning
 	// line[-1] ! = '\n', whether the previous character of the Line string \
 	// is a line break (at the end of the previous line)
-	while (CurLexStream < line && line[-1] != '\n')
+	while (input < line && line[-1] != '\n')
 		line--;
 
 	// end incremental line break to end of line
@@ -35,7 +36,7 @@ void verror_at(int line_no, char *location, char *fmt, va_list va)
 
 	// output filename:error line
 	// ident reg the char number that output
-	int ident = fprintf(stderr, "%s:%d: ", SourceFile, line_no);
+	int ident = fprintf(stderr, "%s:%d: ", filename, line_no);
 	// out all char in line, exclude '\n'
 	fprintf(stderr, "%.*s\n", (int)(end - line), line);
 
@@ -50,13 +51,14 @@ void verror_at(int line_no, char *location, char *fmt, va_list va)
 void error_at(char *location, char *fmt, ...)
 {
 	int line_no = 1;
-	for (char *p = CurLexStream; p < location; p++)
+	for (char *p = CurLexStream->contents; p < location; p++)
 		if (*p == '\n')
 			line_no++;
 
 	va_list va;
 	va_start(va, fmt);
-	verror_at(line_no, location, fmt, va);
+	verror_at(CurLexStream->name, CurLexStream->contents, line_no, location,
+		  fmt, va);
 	exit(1);
 }
 
@@ -64,7 +66,8 @@ void error_token(struct Token *token, char *fmt, ...)
 {
 	va_list va;
 	va_start(va, fmt);
-	verror_at(token->line_no, token->location, fmt, va);
+	verror_at(token->file->name, token->file->contents, token->line_no,
+		  token->location, fmt, va);
 	exit(1);
 }
 
@@ -100,6 +103,7 @@ static struct Token *new_token(enum TokenKind Kind, char *start, char *end)
 	token->kind = Kind;
 	token->location = start;
 	token->len = end - start;
+	token->file = CurLexStream;
 	token->at_bol = AtBOL;
 	AtBOL = false;
 	return token;
@@ -428,7 +432,7 @@ void convert_keywords(struct Token *token)
 // add line number for all token
 static void add_line_numbers(struct Token *token)
 {
-	char *p = CurLexStream;
+	char *p = CurLexStream->contents;
 	int line_number = 1;
 
 	do {
@@ -442,10 +446,11 @@ static void add_line_numbers(struct Token *token)
 }
 
 // Terminator Parser
-struct Token *lexer(char *filename, char *formula)
+struct Token *lexer(struct File *fp)
 {
-	SourceFile = filename;
-	CurLexStream = formula;
+	CurLexStream = fp;
+	char *formula = fp->contents;
+
 	struct Token head = {};
 	struct Token *cur = &head;
 	AtBOL = true;
@@ -549,7 +554,7 @@ static char *read_file(char *path)
 	} else {
 		fp = fopen(path, "r");
 		if (!fp)
-			error_out("cannot open %s: %s", path, strerror(errno));
+			return NULL;
 	}
 
 	// the string that need to return
@@ -580,8 +585,34 @@ static char *read_file(char *path)
 	return buf;
 }
 
+struct File **get_input_files(void)
+{
+	return SourceFile;
+}
+
+static struct File *new_file(char *name, int file_no, char *contents)
+{
+	struct File *fp = calloc(1, sizeof(struct File));
+	fp->name = name;
+	fp->file_no = file_no;
+	fp->contents = contents;
+	return fp;
+}
+
 // file lexing
 struct Token *lexer_file(char *path)
 {
-	return lexer(path, read_file(path));
+	char *formula = read_file(path);
+	if (!formula)
+		return NULL;
+
+	static int file_no;
+	struct File *fp = new_file(path, file_no + 1, formula);
+
+	SourceFile = realloc(SourceFile, sizeof(char *) * (file_no + 2));
+	SourceFile[file_no] = fp;
+	SourceFile[file_no + 1] = NULL;
+	file_no++;
+
+	return lexer(fp);
 }

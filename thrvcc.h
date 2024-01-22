@@ -103,6 +103,12 @@ enum TypeKind {
 	TY_UNION, // union
 };
 
+struct File {
+	char *name;
+	int file_no;
+	char *contents;
+};
+
 struct Token {
 	enum TokenKind kind;
 	struct Token *next;
@@ -113,6 +119,7 @@ struct Token {
 	struct Type *type; // used by TK_NUM or TK_STR
 	char *str;
 
+	struct File *file; // source file path
 	int line_no; // line number
 	bool at_bol; // terminator is true if at begin of line
 };
@@ -257,10 +264,10 @@ extern struct Type *TyFloat;
 extern struct Type *TyDouble;
 extern struct Type *TyVoid;
 extern struct Type *TyBool;
+extern char *BaseFile;
 
 void str_array_push(struct StringArray *arr, char *s);
 void error_out(char *fmt, ...);
-void verror_at(int line_no, char *location, char *fmt, va_list va);
 void error_at(char *location, char *fmt, ...);
 void error_token(struct Token *token, char *fmt, ...);
 // string format
@@ -289,6 +296,8 @@ struct Type *func_type(struct Type *return_ty);
 int align_to(int N, int Align);
 // Type conversion, converting the value of an expression to another type
 struct AstNode *new_cast(struct AstNode *expr, struct Type *type);
+// get input file
+struct File **get_input_files(void);
 // Lexical analysis
 struct Token *lexer_file(char *path);
 // preprocesser

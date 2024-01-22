@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <errno.h>
 #include <glob.h>
 #include <libgen.h>
 #include <stdbool.h>
@@ -24,7 +25,7 @@ static bool OptHashHashHash;
 static char *OptO;
 
 // input file name
-static char *BaseFile;
+char *BaseFile;
 
 // output file name
 static char *OutputFile;
@@ -241,6 +242,9 @@ static void cc1(void)
 {
 	// parse input file, gen token stream
 	struct Token *token = lexer_file(BaseFile);
+	// if generate terminator stream failed, error out file
+	if (!token)
+		error_out("%s: %s", BaseFile, strerror(errno));
 
 	// preprocess
 	token = preprocesser(token);
@@ -249,8 +253,6 @@ static void cc1(void)
 	struct Obj_Var *prog = parse(token);
 
 	FILE *out = open_file(OutputFile);
-	// .file, file number, file name
-	fprintf(out, ".file 1 \"%s\"\n", BaseFile);
 	codegen(prog, out);
 }
 
