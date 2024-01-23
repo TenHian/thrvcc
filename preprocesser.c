@@ -1,13 +1,10 @@
 #include "thrvcc.h"
-#include <errno.h>
-#include <libgen.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdbool.h>
 
 // #if can be nested, so use the stack to hold nested #if
 struct CondIncl {
 	struct CondIncl *next;
-	enum { IN_THEN, IN_ELSE } ctx; // type
+	enum { IN_THEN, IN_ELIF, IN_ELSE } ctx; // type
 	struct Token *token;
 	bool included;
 };
@@ -91,7 +88,8 @@ static struct Token *skip_condincl(struct Token *token)
 		}
 		// #else #endif
 		if (is_begin_hash(token) &&
-		    (equal(token->next, "else") || equal(token->next, "endif")))
+		    (equal(token->next, "elif") || equal(token->next, "else") ||
+		     equal(token->next, "endif")))
 			break;
 		token = token->next;
 	}
@@ -198,6 +196,21 @@ static struct Token *preprocess(struct Token *token)
 
 			// #if false
 			if (!val)
+				token = skip_condincl(token);
+			continue;
+		}
+
+		// #elif
+		if (equal(token, "elif")) {
+			if (!CondIncls || CondIncls->ctx == IN_ELSE)
+				error_token(start, "stray #elif");
+			CondIncls->ctx = IN_ELIF;
+
+			if (!CondIncls->included &&
+			    eval_constexpr(&token, token))
+				// #if false #elif true
+				CondIncls->included = true;
+			else
 				token = skip_condincl(token);
 			continue;
 		}
