@@ -18,6 +18,18 @@ int main()
 	assert(5, include1, "include1");
 	assert(7, include2, "include2");
 
+	printf("[161] support #if and #endif\n");
+#if 0
+#include "/no/such/file"
+	assert(0,1, "1");
+#endif
+	int m = 0;
+
+#if 1
+	m = 5;
+#endif
+	assert(5, m, "m");
+
 	printf("OK\n");
 	return 0;
 }

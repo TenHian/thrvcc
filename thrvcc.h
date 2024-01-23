@@ -297,6 +297,8 @@ struct Type *func_type(struct Type *return_ty);
 int align_to(int N, int Align);
 // Type conversion, converting the value of an expression to another type
 struct AstNode *new_cast(struct AstNode *expr, struct Type *type);
+// parse constexpr
+int64_t const_expr(struct Token **rest, struct Token *token);
 // get input file
 struct File **get_input_files(void);
 // Lexical analysis

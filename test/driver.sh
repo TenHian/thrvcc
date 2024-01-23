@@ -98,7 +98,7 @@ echo 'int main() {}' > $tmp/foo.c
 check a.out
 
 # -E
-# [160] support -E
+# [160] add option -E
 echo foo > $tmp/out
 echo "#include \"$tmp/out\"" | ./thrvcc -E - | grep -q foo
 check -E

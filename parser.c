@@ -1,10 +1,4 @@
 #include "thrvcc.h"
-#include <math.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
 
 // local/global variable, typedef or enum constant scope
 struct VarScope {
@@ -215,7 +209,6 @@ static struct AstNode *expr(struct Token **rest, struct Token *token);
 static int64_t eval(struct AstNode *node);
 static int64_t eval2(struct AstNode *node, char **label);
 static int64_t eval_rval(struct AstNode *node, char **label);
-static int64_t const_expr(struct Token **rest, struct Token *token);
 static double eval_double(struct AstNode *node);
 static struct AstNode *assign(struct Token **rest, struct Token *token);
 static struct AstNode *conditional(struct Token **rest, struct Token *token);
@@ -2069,7 +2062,7 @@ static int64_t eval_rval(struct AstNode *node, char **label)
 }
 
 // Parsing constant expressions
-static int64_t const_expr(struct Token **rest, struct Token *token)
+int64_t const_expr(struct Token **rest, struct Token *token)
 {
 	// construct constant expression
 	struct AstNode *node = conditional(rest, token);

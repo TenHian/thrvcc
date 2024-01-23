@@ -246,7 +246,7 @@ static void run_cc1(int argc, char **argv, char *input, char *output)
 	run_subprocess(args);
 }
 
-// when -E, print all therminators
+// when -E, print all terminators
 static void print_tokens(struct Token *token)
 {
 	// default output stdout
