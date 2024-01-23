@@ -109,6 +109,11 @@ struct File {
 	char *contents;
 };
 
+struct HideSet {
+	struct HideSet *next;
+	char *name;
+};
+
 struct Token {
 	enum TokenKind kind;
 	struct Token *next;
@@ -122,6 +127,7 @@ struct Token {
 	struct File *file; // source file path
 	int line_no; // line number
 	bool at_bol; // terminator is true if at begin of line
+	struct HideSet *hideset; // used for hidden sets when macros are expanded
 };
 
 struct Type {

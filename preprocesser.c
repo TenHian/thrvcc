@@ -57,6 +57,47 @@ static struct Token *new_eof(struct Token *token)
 	return t;
 }
 
+static struct HideSet *new_hideset(char *name)
+{
+	struct HideSet *hs = calloc(1, sizeof(struct HideSet));
+	hs->name = name;
+	return hs;
+}
+
+static struct HideSet *hideset_union(struct HideSet *hs1, struct HideSet *hs2)
+{
+	struct HideSet head = {};
+	struct HideSet *cur = &head;
+
+	for (; hs1; hs1 = hs1->next)
+		cur = cur->next = new_hideset(hs1->name);
+	cur->next = hs2;
+	return head.next;
+}
+
+// if already in hideset
+static bool hideset_contains(struct HideSet *hs, char *s, int len)
+{
+	for (; hs; hs = hs->next)
+		if (strlen(hs->name) == len && !strncmp(hs->name, s, len))
+			return true;
+	return false;
+}
+
+// iterate all terminators after token, assign hs for every terminator
+static struct Token *add_hideset(struct Token *token, struct HideSet *hs)
+{
+	struct Token head = {};
+	struct Token *cur = &head;
+
+	for (; token; token = token->next) {
+		struct Token *t = copy_token(token);
+		t->hideset = hideset_union(t->hideset, hs);
+		cur = cur->next = t;
+	}
+	return head.next;
+}
+
 static struct Token *append(struct Token *token1, struct Token *token2)
 {
 	if (token1->kind == TK_EOF)
@@ -181,14 +222,24 @@ static struct Macro *push_macro(char *name, struct Token *body)
 	return m;
 }
 
-// if Macro var, expand, return true
-// else NULL false
+// if Macro var and expand success, return true
 static bool expand_macro(struct Token **rest, struct Token *token)
 {
+	// determined if in hideset
+	if (hideset_contains(token->hideset, token->location, token->len))
+		return false;
+
+	// determined if macro var
 	struct Macro *m = find_macro(token);
 	if (!m)
 		return false;
-	*rest = append(m->body, token->next);
+
+	// macro expand once, add it into hideset
+	struct HideSet *hs =
+		hideset_union(token->hideset, new_hideset(m->name));
+	// after process this macro var, pass hidset to terminators behind
+	struct Token *body = add_hideset(m->body, hs);
+	*rest = append(body, token->next);
 	return true;
 }
 
