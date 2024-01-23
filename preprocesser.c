@@ -8,9 +8,6 @@ struct Macro {
 	bool deleted;
 };
 
-// global Macro stack
-static struct Macro *Macros;
-
 // #if can be nested, so use the stack to hold nested #if
 struct CondIncl {
 	struct CondIncl *next;
@@ -19,8 +16,12 @@ struct CondIncl {
 	bool included;
 };
 
+// global Macro stack
+static struct Macro *Macros;
 // global #if stack
 static struct CondIncl *CondIncls;
+
+static struct Token *preprocess(struct Token *token);
 
 // if # at the begin of line
 static bool is_begin_hash(struct Token *token)
@@ -128,6 +129,8 @@ static long eval_constexpr(struct Token **rest, struct Token *token)
 {
 	struct Token *start = token;
 	struct Token *expr = copy_line(rest, token->next);
+	// parse Macro var
+	expr = preprocess(expr);
 
 	// if empty directive, error out
 	if (expr->kind == TK_EOF)
