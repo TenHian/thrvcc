@@ -22,6 +22,10 @@ int main()
 #if 0
 #include "/no/such/file"
 	assert(0,1, "1");
+
+	// [162] skip nested #if statements in #if statements with false values
+#if nested
+#endif
 #endif
 	int m = 0;
 

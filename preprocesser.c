@@ -64,11 +64,19 @@ static struct Token *append(struct Token *token1, struct Token *token2)
 }
 
 // if #if is empty, skip to #endif
+// skip nest #if too
 static struct Token *skip_condincl(struct Token *token)
 {
 	while (token->kind != TK_EOF) {
+		// skip #if
+		if (is_begin_hash(token) && equal(token->next, "if")) {
+			token = skip_condincl(token->next->next);
+			token = token->next;
+			continue;
+		}
+		// #endif
 		if (is_begin_hash(token) && equal(token->next, "endif"))
-			return token;
+			break;
 		token = token->next;
 	}
 	return token;
