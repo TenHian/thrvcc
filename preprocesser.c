@@ -1,5 +1,17 @@
 #include "thrvcc.h"
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+
+// maceo variable
+struct Macro {
+	struct Macro *next;
+	char *name;
+	struct Token *body;
+};
+
+// global Macro stack
+static struct Macro *Macros;
 
 // #if can be nested, so use the stack to hold nested #if
 struct CondIncl {
@@ -48,13 +60,13 @@ static struct Token *new_eof(struct Token *token)
 
 static struct Token *append(struct Token *token1, struct Token *token2)
 {
-	if (!token1 || token1->kind == TK_EOF)
+	if (token1->kind == TK_EOF)
 		return token2;
 
 	struct Token head = {};
 	struct Token *cur = &head;
 
-	for (; token1 && token1->kind != TK_EOF; token1 = token1->next)
+	for (; token1->kind != TK_EOF; token1 = token1->next)
 		cur = cur->next = copy_token(token1);
 
 	cur->next = token2;
@@ -144,6 +156,41 @@ static struct CondIncl *push_condincl(struct Token *token, bool included)
 	return ci;
 }
 
+static struct Macro *find_macro(struct Token *token)
+{
+	// if not identifier, error
+	if (token->kind != TK_IDENT)
+		return NULL;
+
+	// iterate Macro stack, if match return matched marco value
+	for (struct Macro *m = Macros; m; m = m->next)
+		if (strlen(m->name) == token->len &&
+		    !strncmp(m->name, token->location, token->len))
+			return m;
+	return NULL;
+}
+
+static struct Macro *push_macro(char *name, struct Token *body)
+{
+	struct Macro *m = calloc(1, sizeof(struct Macro));
+	m->next = Macros;
+	m->name = name;
+	m->body = body;
+	Macros = m;
+	return m;
+}
+
+// if Macro var, expand, return true
+// else NULL false
+static bool expand_macro(struct Token **rest, struct Token *token)
+{
+	struct Macro *m = find_macro(token);
+	if (!m)
+		return false;
+	*rest = append(m->body, token->next);
+	return true;
+}
+
 // iterate terminator, process with macro and directive
 static struct Token *preprocess(struct Token *token)
 {
@@ -151,6 +198,9 @@ static struct Token *preprocess(struct Token *token)
 	struct Token *cur = &head;
 
 	while (token->kind != TK_EOF) {
+		if (expand_macro(&token, token))
+			continue;
+
 		if (!is_begin_hash(token)) {
 			cur->next = token;
 			cur = cur->next;
@@ -186,6 +236,17 @@ static struct Token *preprocess(struct Token *token)
 				error_token(token, "%s", strerror(errno));
 			token = skip_line(token->next);
 			token = append(token2, token);
+			continue;
+		}
+
+		// #define
+		if (equal(token, "define")) {
+			token = token->next;
+			if (token->kind != TK_IDENT)
+				error_token(token,
+					    "macro name must be an identifier");
+			char *name = strndup(token->location, token->len);
+			push_macro(name, copy_line(&token, token->next));
 			continue;
 		}
 
