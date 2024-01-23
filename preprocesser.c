@@ -1,13 +1,11 @@
 #include "thrvcc.h"
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
 
 // maceo variable
 struct Macro {
 	struct Macro *next;
 	char *name;
 	struct Token *body;
+	bool deleted;
 };
 
 // global Macro stack
@@ -166,7 +164,7 @@ static struct Macro *find_macro(struct Token *token)
 	for (struct Macro *m = Macros; m; m = m->next)
 		if (strlen(m->name) == token->len &&
 		    !strncmp(m->name, token->location, token->len))
-			return m;
+			return m->deleted ? NULL : m;
 	return NULL;
 }
 
@@ -247,6 +245,21 @@ static struct Token *preprocess(struct Token *token)
 					    "macro name must be an identifier");
 			char *name = strndup(token->location, token->len);
 			push_macro(name, copy_line(&token, token->next));
+			continue;
+		}
+
+		// #undef
+		if (equal(token, "undef")) {
+			token = token->next;
+			if (token->kind != TK_IDENT)
+				error_token(token,
+					    "macro name must be an identifier");
+			char *name = strndup(token->location, token->len);
+
+			token = skip_line(token->next);
+
+			struct Macro *m = push_macro(name, NULL);
+			m->deleted = true;
 			continue;
 		}
 

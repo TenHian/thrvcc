@@ -130,6 +130,15 @@ int main()
 #define END )
 	ASSERT_ 5, if, five END;
 
+	printf("[166] support #undef\n");
+#undef ASSERT_
+#undef if
+#undef five
+#undef END
+
+	if (0)
+		;
+
 	printf("OK\n");
 	return 0;
 }
