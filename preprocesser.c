@@ -5,10 +5,11 @@
 #include <string.h>
 
 // #if can be nested, so use the stack to hold nested #if
-// conditional inclusion
 struct CondIncl {
 	struct CondIncl *next;
+	enum { IN_THEN, IN_ELSE } ctx; // type
 	struct Token *token;
+	bool included;
 };
 
 // global #if stack
@@ -63,6 +64,21 @@ static struct Token *append(struct Token *token1, struct Token *token2)
 	return head.next;
 }
 
+// skip #if and #endif
+static struct Token *skip_condincl2(struct Token *token)
+{
+	while (token->kind != TK_EOF) {
+		if (is_begin_hash(token) && equal(token->next, "if")) {
+			token = skip_condincl2(token->next->next);
+			continue;
+		}
+		if (is_begin_hash(token) && equal(token->next, "endif"))
+			return token->next->next;
+		token = token->next;
+	}
+	return token;
+}
+
 // if #if is empty, skip to #endif
 // skip nest #if too
 static struct Token *skip_condincl(struct Token *token)
@@ -70,12 +86,12 @@ static struct Token *skip_condincl(struct Token *token)
 	while (token->kind != TK_EOF) {
 		// skip #if
 		if (is_begin_hash(token) && equal(token->next, "if")) {
-			token = skip_condincl(token->next->next);
-			token = token->next;
+			token = skip_condincl2(token->next->next);
 			continue;
 		}
-		// #endif
-		if (is_begin_hash(token) && equal(token->next, "endif"))
+		// #else #endif
+		if (is_begin_hash(token) &&
+		    (equal(token->next, "else") || equal(token->next, "endif")))
 			break;
 		token = token->next;
 	}
@@ -119,11 +135,13 @@ static long eval_constexpr(struct Token **rest, struct Token *token)
 	return val;
 }
 
-static struct CondIncl *push_condincl(struct Token *token)
+static struct CondIncl *push_condincl(struct Token *token, bool included)
 {
 	struct CondIncl *ci = calloc(1, sizeof(struct CondIncl));
 	ci->next = CondIncls;
+	ci->ctx = IN_THEN;
 	ci->token = token;
+	ci->included = included;
 	CondIncls = ci;
 	return ci;
 }
@@ -176,10 +194,24 @@ static struct Token *preprocess(struct Token *token)
 		// #if
 		if (equal(token, "if")) {
 			long val = eval_constexpr(&token, token);
-			push_condincl(start);
+			push_condincl(start, val);
 
 			// #if false
 			if (!val)
+				token = skip_condincl(token);
+			continue;
+		}
+
+		// #else
+		if (equal(token, "else")) {
+			if (!CondIncls || CondIncls->ctx == IN_ELSE)
+				error_token(start, "stray #else");
+			CondIncls->ctx = IN_ELSE;
+
+			token = skip_line(token->next);
+
+			// #if true #else, else skip
+			if (CondIncls->included)
 				token = skip_condincl(token);
 			continue;
 		}
