@@ -117,7 +117,9 @@ static struct Token *append(struct Token *token1, struct Token *token2)
 static struct Token *skip_condincl2(struct Token *token)
 {
 	while (token->kind != TK_EOF) {
-		if (is_begin_hash(token) && equal(token->next, "if")) {
+		if (is_begin_hash(token) &&
+		    (equal(token->next, "if") || equal(token->next, "ifdef") ||
+		     equal(token->next, "ifndef"))) {
 			token = skip_condincl2(token->next->next);
 			continue;
 		}
@@ -134,7 +136,9 @@ static struct Token *skip_condincl(struct Token *token)
 {
 	while (token->kind != TK_EOF) {
 		// skip #if
-		if (is_begin_hash(token) && equal(token->next, "if")) {
+		if (is_begin_hash(token) &&
+		    (equal(token->next, "if") || equal(token->next, "ifdef") ||
+		     equal(token->next, "ifndef"))) {
 			token = skip_condincl2(token->next->next);
 			continue;
 		}
@@ -324,6 +328,28 @@ static struct Token *preprocess(struct Token *token)
 
 			// #if false
 			if (!val)
+				token = skip_condincl(token);
+			continue;
+		}
+
+		// #ifdef
+		if (equal(token, "ifdef")) {
+			bool defined = find_macro(token->next);
+			// push #if stack
+			push_condincl(token, defined);
+			token = skip_line(token->next->next);
+			// if not defined, skip
+			if (!defined)
+				token = skip_condincl(token);
+			continue;
+		}
+
+		// #ifndef
+		if (equal(token, "ifndef")) {
+			bool defined = find_macro(token->next);
+			push_condincl(token, !defined);
+			token = skip_line(token->next->next);
+			if (defined)
 				token = skip_condincl(token);
 			continue;
 		}
