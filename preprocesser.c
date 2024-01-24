@@ -1,10 +1,22 @@
 #include "thrvcc.h"
 
+struct MacroParam {
+	struct MacroParam *next;
+	char *name;
+};
+
+struct MacroArg {
+	struct MacroArg *next;
+	char *name;
+	struct Token *token;
+};
+
 // maceo variable
 struct Macro {
 	struct Macro *next;
 	char *name;
 	bool is_obj_like; // macro var->true, macro func->false
+	struct MacroParam *params;
 	struct Token *body;
 	bool deleted;
 };
@@ -229,6 +241,26 @@ static struct Macro *push_macro(char *name, bool is_obj_like,
 	return m;
 }
 
+static struct MacroParam *read_macro_params(struct Token **rest,
+					    struct Token *token)
+{
+	struct MacroParam head = {};
+	struct MacroParam *cur = &head;
+
+	while (!equal(token, ")")) {
+		if (cur != &head)
+			token = skip(token, ",");
+		if (token->kind != TK_IDENT)
+			error_token(token, "expected an identifier");
+		struct MacroParam *m = calloc(1, sizeof(struct MacroParam));
+		m->name = strndup(token->location, token->len);
+		cur = cur->next = m;
+		token = token->next;
+	}
+	*rest = token->next;
+	return head.next;
+}
+
 static void read_macro_def(struct Token **rest, struct Token *token)
 {
 	if (token->kind != TK_IDENT)
@@ -238,11 +270,99 @@ static void read_macro_def(struct Token **rest, struct Token *token)
 	// determine if macro var of macro func.
 	// macro func if there no space before ()
 	if (!token->has_space && equal(token, "(")) {
-		token = skip(token->next, ")");
-		push_macro(name, false, copy_line(rest, token));
+		// construct params
+		struct MacroParam *params =
+			read_macro_params(&token, token->next);
+		// push macro func
+		struct Macro *m =
+			push_macro(name, false, copy_line(rest, token));
+		m->params = params;
 	} else {
 		push_macro(name, true, copy_line(rest, token));
 	}
+}
+
+static struct MacroArg *read_one_macro_arg(struct Token **rest,
+					   struct Token *token)
+{
+	struct Token head = {};
+	struct Token *cur = &head;
+
+	while (!equal(token, ",") && !equal(token, ")")) {
+		if (token->kind == TK_EOF)
+			error_token(token, "premature end of input");
+		cur = cur->next = copy_token(token);
+		token = token->next;
+	}
+
+	cur->next = new_eof(token);
+
+	struct MacroArg *arg = calloc(1, sizeof(struct MacroArg));
+	arg->token = head.next;
+	*rest = token;
+	return arg;
+}
+
+static struct MacroArg *read_macro_args(struct Token **rest,
+					struct Token *token,
+					struct MacroParam *params)
+{
+	struct Token *start = token;
+	token = token->next->next;
+
+	struct MacroArg head = {};
+	struct MacroArg *cur = &head;
+
+	struct MacroParam *mp = params;
+	for (; mp; mp = mp->next) {
+		if (cur != &head)
+			token = skip(token, ",");
+		cur = cur->next = read_one_macro_arg(&token, token);
+		cur->name = mp->name;
+	}
+	// if left, error
+	if (mp)
+		error_token(start, "too many arguments");
+	*rest = skip(token, ")");
+	return head.next;
+}
+
+static struct MacroArg *find_macro_arg(struct MacroArg *args,
+				       struct Token *token)
+{
+	for (struct MacroArg *ma = args; ma; ma = ma->next)
+		if (token->len == strlen(ma->name) &&
+		    !strncmp(token->location, ma->name, token->len))
+			return ma;
+	return NULL;
+}
+
+// replace macro params with args
+static struct Token *subst(struct Token *token, struct MacroArg *args)
+{
+	struct Token head = {};
+	struct Token *cur = &head;
+
+	while (token->kind != TK_EOF) {
+		struct MacroArg *arg = find_macro_arg(args, token);
+
+		//process macro terminator
+		if (arg) {
+			struct Token *t = preprocess(arg->token);
+			for (; t->kind != TK_EOF; t = t->next)
+				cur = cur->next = copy_token(t);
+			token = token->next;
+			continue;
+		}
+
+		// process other terminator
+		cur = cur->next = copy_token(token);
+		token = token->next;
+		continue;
+	}
+
+	cur->next = token;
+	return head.next;
 }
 
 // if Macro var and expand success, return true
@@ -272,9 +392,9 @@ static bool expand_macro(struct Token **rest, struct Token *token)
 	if (!equal(token->next, "("))
 		return false;
 
-	// process macro func's ")", and link after token
-	token = skip(token->next->next, ")");
-	*rest = append(m->body, token);
+	// process macro func, and link after token
+	struct MacroArg *args = read_macro_args(&token, token, m->params);
+	*rest = append(subst(m->body, args), token);
 	return true;
 }
 
