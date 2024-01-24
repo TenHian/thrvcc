@@ -1,9 +1,9 @@
 #include "thrvcc.h"
-#include <stdarg.h>
 
 static struct File *CurLexStream; // reg the cur lexing stream
 static struct File **SourceFile; // current lexing file list
 static bool AtBOL; // true if at begin of line
+static bool HasSpace; // true if there space before terminator
 
 void error_out(char *fmt, ...)
 {
@@ -117,6 +117,8 @@ static struct Token *new_token(enum TokenKind Kind, char *start, char *end)
 	token->file = CurLexStream;
 	token->at_bol = AtBOL;
 	AtBOL = false;
+	token->has_space = HasSpace;
+	HasSpace = false;
 	return token;
 }
 
@@ -465,6 +467,7 @@ struct Token *lexer(struct File *fp)
 	struct Token head = {};
 	struct Token *cur = &head;
 	AtBOL = true;
+	HasSpace = false;
 
 	while (*formula) {
 		// skip comment lines
@@ -472,6 +475,7 @@ struct Token *lexer(struct File *fp)
 			formula += 2;
 			while (*formula != '\n')
 				formula++;
+			HasSpace = true;
 			continue;
 		}
 
@@ -482,6 +486,7 @@ struct Token *lexer(struct File *fp)
 			if (!block_end)
 				error_at(formula, "unclosed block comment");
 			formula = block_end + 2;
+			HasSpace = true;
 			continue;
 		}
 
@@ -489,12 +494,14 @@ struct Token *lexer(struct File *fp)
 		if (*formula == '\n') {
 			formula++;
 			AtBOL = true;
+			HasSpace = true;
 			continue;
 		}
 
 		// skip like whitespace, enter, tab
 		if (isspace(*formula)) {
 			++formula;
+			HasSpace = true;
 			continue;
 		}
 

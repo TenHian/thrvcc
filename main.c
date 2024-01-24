@@ -1,12 +1,4 @@
 #include "thrvcc.h"
-#include <errno.h>
-#include <glob.h>
-#include <libgen.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <time.h>
 
 static char *RVPath = "";
 
@@ -257,7 +249,9 @@ static void print_tokens(struct Token *token)
 	for (; token->kind != TK_EOF; token = token->next) {
 		if (line > 1 && token->at_bol)
 			fprintf(out, "\n");
-		fprintf(out, " %.*s", token->len, token->location);
+		if (token->has_space && !token->at_bol)
+			fprintf(out, " ");
+		fprintf(out, "%.*s", token->len, token->location);
 		line++;
 	}
 	fprintf(out, "\n");

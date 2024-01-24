@@ -4,6 +4,7 @@
 struct Macro {
 	struct Macro *next;
 	char *name;
+	bool is_obj_like; // macro var->true, macro func->false
 	struct Token *body;
 	bool deleted;
 };
@@ -216,14 +217,32 @@ static struct Macro *find_macro(struct Token *token)
 	return NULL;
 }
 
-static struct Macro *push_macro(char *name, struct Token *body)
+static struct Macro *push_macro(char *name, bool is_obj_like,
+				struct Token *body)
 {
 	struct Macro *m = calloc(1, sizeof(struct Macro));
 	m->next = Macros;
 	m->name = name;
+	m->is_obj_like = is_obj_like;
 	m->body = body;
 	Macros = m;
 	return m;
+}
+
+static void read_macro_def(struct Token **rest, struct Token *token)
+{
+	if (token->kind != TK_IDENT)
+		error_token(token, "marco name must be an identifier");
+	char *name = strndup(token->location, token->len);
+	token = token->next;
+	// determine if macro var of macro func.
+	// macro func if there no space before ()
+	if (!token->has_space && equal(token, "(")) {
+		token = skip(token->next, ")");
+		push_macro(name, false, copy_line(rest, token));
+	} else {
+		push_macro(name, true, copy_line(rest, token));
+	}
 }
 
 // if Macro var and expand success, return true
@@ -238,12 +257,24 @@ static bool expand_macro(struct Token **rest, struct Token *token)
 	if (!m)
 		return false;
 
-	// macro expand once, add it into hideset
-	struct HideSet *hs =
-		hideset_union(token->hideset, new_hideset(m->name));
-	// after process this macro var, pass hidset to terminators behind
-	struct Token *body = add_hideset(m->body, hs);
-	*rest = append(body, token->next);
+	// if macro var
+	if (m->is_obj_like) {
+		// macro expand once, add it into hideset
+		struct HideSet *hs =
+			hideset_union(token->hideset, new_hideset(m->name));
+		// after process this macro var, pass hidset to terminators behind
+		struct Token *body = add_hideset(m->body, hs);
+		*rest = append(body, token->next);
+		return true;
+	}
+
+	// if there no args list behind macro func, process it as normal identifier
+	if (!equal(token->next, "("))
+		return false;
+
+	// process macro func's ")", and link after token
+	token = skip(token->next->next, ")");
+	*rest = append(m->body, token);
 	return true;
 }
 
@@ -297,12 +328,7 @@ static struct Token *preprocess(struct Token *token)
 
 		// #define
 		if (equal(token, "define")) {
-			token = token->next;
-			if (token->kind != TK_IDENT)
-				error_token(token,
-					    "macro name must be an identifier");
-			char *name = strndup(token->location, token->len);
-			push_macro(name, copy_line(&token, token->next));
+			read_macro_def(&token, token->next);
 			continue;
 		}
 
@@ -316,7 +342,7 @@ static struct Token *preprocess(struct Token *token)
 
 			token = skip_line(token->next);
 
-			struct Macro *m = push_macro(name, NULL);
+			struct Macro *m = push_macro(name, true, NULL);
 			m->deleted = true;
 			continue;
 		}
