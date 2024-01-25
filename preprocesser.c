@@ -1,4 +1,5 @@
 #include "thrvcc.h"
+#include <string.h>
 
 struct MacroParam {
 	struct MacroParam *next;
@@ -95,6 +96,18 @@ static bool hideset_contains(struct HideSet *hs, char *s, int len)
 		if (strlen(hs->name) == len && !strncmp(hs->name, s, len))
 			return true;
 	return false;
+}
+
+static struct HideSet *hideset_intersection(struct HideSet *hs1,
+					    struct HideSet *hs2)
+{
+	struct HideSet head = {};
+	struct HideSet *cur = &head;
+
+	for (; hs1; hs1 = hs1->next)
+		if (hideset_contains(hs2, hs1->name, strlen(hs1->name)))
+			cur = cur->next = new_hideset(hs1->name);
+	return head.next;
 }
 
 // iterate all terminators after token, assign hs for every terminator
@@ -330,7 +343,9 @@ static struct MacroArg *read_macro_args(struct Token **rest,
 	// if left, error
 	if (mp)
 		error_token(start, "too many arguments");
-	*rest = skip(token, ")");
+	skip(token, ")");
+	// return )
+	*rest = token;
 	return head.next;
 }
 
@@ -400,8 +415,26 @@ static bool expand_macro(struct Token **rest, struct Token *token)
 		return false;
 
 	// process macro func, and link after token
+	// read macro func, here macro func's hideset
+	struct Token *macro_token = token;
 	struct MacroArg *args = read_macro_args(&token, token, m->params);
-	*rest = append(subst(m->body, args), token);
+	// here return ), here macro arg's hideset
+	struct Token *r_paren = token;
+	// macro functions may have different hidden sets between them, \
+	// and the new terminator would not know which hidden set to use.
+	// we take the intersection of the macro terminator and the right bracket \
+	// and use it as the new hidden set.
+	struct HideSet *hs =
+		hideset_intersection(macro_token->hideset, r_paren->hideset);
+
+	// add cur func into hideset
+	hs = hideset_union(hs, new_hideset(m->name));
+	// replace macro func params with args
+	struct Token *body = subst(m->body, args);
+	// set macro func inner hideset
+	body = add_hideset(body, hs);
+	// append
+	*rest = append(body, token->next);
 	return true;
 }
 
