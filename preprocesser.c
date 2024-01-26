@@ -1,5 +1,4 @@
 #include "thrvcc.h"
-#include <string.h>
 
 struct MacroParam {
 	struct MacroParam *next;
@@ -178,9 +177,39 @@ static struct Token *skip_condincl(struct Token *token)
 	return token;
 }
 
-// copy all terminators between the current tok and line breaks and \
-// end them with EOF terminators
-// this function analyzes parameters for #if
+static char *quote_string(char *str)
+{
+	int buf_size = 3;
+	// if have \ or ", then need one more space to store escape sign
+	for (int i = 0; str[i]; i++) {
+		if (str[i] == '\\' || str[i] == '"')
+			buf_size++;
+		buf_size++;
+	}
+	char *buf = calloc(1, buf_size);
+	char *p = buf;
+	// " at begin
+	*p++ = '"';
+	for (int i = 0; str[i]; i++) {
+		if (str[i] == '\\' || str[i] == '"')
+			*p++ = '\\';
+		*p++ = str[i];
+	}
+	// "\0 at end
+	*p++ = '"';
+	*p++ = '\0';
+	return buf;
+}
+
+// construct a new str terminator
+static struct Token *new_str_token(char *str, struct Token *tmpl)
+{
+	char *buf = quote_string(str);
+	// pass the string and the corresponding macro name into
+	// the lexical analysis to parse it
+	return lexer(new_file(tmpl->file->name, tmpl->file->file_no, buf));
+}
+
 static struct Token *copy_line(struct Token **rest, struct Token *token)
 {
 	struct Token head = {};
@@ -359,6 +388,43 @@ static struct MacroArg *find_macro_arg(struct MacroArg *args,
 	return NULL;
 }
 
+// concatenates all the terminators in the terminator chain table
+// and returns a new string
+static char *join_tokens(struct Token *token)
+{
+	// calculate the length of the final terminator
+	int len = 1;
+	for (struct Token *t = token; t && t->kind != TK_EOF; t = t->next) {
+		// not the first, and preceded by a space, \
+		// the count is increased by one
+		if (t != token && t->has_space)
+			len++;
+		len += t->len;
+	}
+	char *buf = calloc(1, len);
+	// copy
+	int pos = 0;
+	for (struct Token *t = token; t && t->kind != TK_EOF; t = t->next) {
+		// not the first, and preceded by a space, \
+		// set space
+		if (t != token && t->has_space)
+			buf[pos++] = ' ';
+		strncpy(buf + pos, t->location, t->len);
+		pos += t->len;
+	}
+	// end with '\0'
+	buf[pos] = '\0';
+	return buf;
+}
+
+// concatenates the terminators in all args and \
+// returns a string terminator
+static struct Token *stringize(struct Token *hash, struct Token *arg)
+{
+	char *s = join_tokens(arg);
+	return new_str_token(s, hash);
+}
+
 // replace macro params with args
 static struct Token *subst(struct Token *token, struct MacroArg *args)
 {
@@ -366,6 +432,20 @@ static struct Token *subst(struct Token *token, struct MacroArg *args)
 	struct Token *cur = &head;
 
 	while (token->kind != TK_EOF) {
+		// #macro arg, replace with corresponding str
+		if (equal(token, "#")) {
+			struct MacroArg *arg =
+				find_macro_arg(args, token->next);
+			if (!arg)
+				error_token(
+					token->next,
+					"'#' is not followed by a macro parameter");
+			// stringize
+			cur = cur->next = stringize(token, arg->token);
+			token = token->next->next;
+			continue;
+		}
+
 		struct MacroArg *arg = find_macro_arg(args, token);
 
 		//process macro terminator

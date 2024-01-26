@@ -608,7 +608,7 @@ struct File **get_input_files(void)
 	return SourceFile;
 }
 
-static struct File *new_file(char *name, int file_no, char *contents)
+struct File *new_file(char *name, int file_no, char *contents)
 {
 	struct File *fp = calloc(1, sizeof(struct File));
 	fp->name = name;
