@@ -425,6 +425,21 @@ static struct Token *stringize(struct Token *hash, struct Token *arg)
 	return new_str_token(s, hash);
 }
 
+// splicing two terminators to build a new one
+static struct Token *splice_terminators(struct Token *lhs, struct Token *rhs)
+{
+	// splice
+	char *buf = format("%.*s%.*s", lhs->len, lhs->location, rhs->len,
+			   rhs->location);
+
+	// lex buf, get token stream
+	struct Token *token =
+		lexer(new_file(lhs->file->name, lhs->file->file_no, buf));
+	if (token->next->kind != TK_EOF)
+		error_token(lhs, "splicing froms '%s', an invalid token", buf);
+	return token;
+}
+
 // replace macro params with args
 static struct Token *subst(struct Token *token, struct MacroArg *args)
 {
@@ -446,7 +461,70 @@ static struct Token *subst(struct Token *token, struct MacroArg *args)
 			continue;
 		}
 
+		// ##__, used for splice terminators
+		if (equal(token, "##")) {
+			if (cur == &head)
+				error_token(
+					token,
+					"'##' cannot appear at start of macro expansion");
+			if (token->next->kind == TK_EOF)
+				error_token(
+					token,
+					"'##' cannot appear at end of macro expansion");
+			// search next terminator
+			// if (##__) macro args
+			struct MacroArg *arg =
+				find_macro_arg(args, token->next);
+			if (arg) {
+				if (arg->token->kind != TK_EOF) {
+					// splice
+					*cur = *splice_terminators(cur,
+								   arg->token);
+					// the left terminators after splice
+					for (struct Token *t = arg->token->next;
+					     t->kind != TK_EOF; t = t->next)
+						cur = cur->next = copy_token(t);
+				}
+				token = token->next->next;
+				continue;
+			}
+			// if not (##__) macro args, splice direct splicing
+			*cur = *splice_terminators(cur, token->next);
+			token = token->next->next;
+			continue;
+		}
+
 		struct MacroArg *arg = find_macro_arg(args, token);
+
+		// __##, used for splice terminator
+		if (arg && equal(token->next, "##")) {
+			// read ##'s right terminators
+			struct Token *rhs = token->next->next;
+
+			// case ## left args is empty
+			if (arg->token->kind == TK_EOF) {
+				// search ## right args
+				struct MacroArg *arg2 =
+					find_macro_arg(args, rhs);
+				if (arg2) {
+					// if args
+					for (struct Token *t = arg2->token;
+					     t->kind != TK_EOF; t = t->next)
+						cur = cur->next = copy_token(t);
+				} else {
+					// if not args
+					cur = cur->next = copy_token(rhs);
+				}
+				token = rhs->next;
+				continue;
+			}
+			// case ## left args not empty
+			for (struct Token *t = arg->token; t->kind != TK_EOF;
+			     t = t->next)
+				cur = cur->next = copy_token(t);
+			token = token->next;
+			continue;
+		}
 
 		//process macro terminator
 		if (arg) {
