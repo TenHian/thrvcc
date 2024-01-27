@@ -276,6 +276,15 @@ static long eval_constexpr(struct Token **rest, struct Token *token)
 	if (expr->kind == TK_EOF)
 		error_token(start, "no expression");
 
+	// replace legacy identifiers with 0 before evaluating constant expressions
+	for (struct Token *t = expr; t->kind != TK_EOF; t = t->next) {
+		if (t->kind == TK_IDENT) {
+			struct Token *next = t->next;
+			*t = *new_num_token(0, t);
+			t->next = next;
+		}
+	}
+
 	// evaluate value of constexpr
 	struct Token *rest2;
 	long val = const_expr(&rest2, expr);
