@@ -578,6 +578,9 @@ static struct Token *subst(struct Token *token, struct MacroArg *args)
 		//process macro terminator
 		if (arg) {
 			struct Token *t = preprocess(arg->token);
+			// pass AtBOL and HasSpace
+			t->at_bol = token->at_bol;
+			t->has_space = token->has_space;
 			for (; t->kind != TK_EOF; t = t->next)
 				cur = cur->next = copy_token(t);
 			token = token->next;
@@ -614,6 +617,9 @@ static bool expand_macro(struct Token **rest, struct Token *token)
 		// after process this macro var, pass hidset to terminators behind
 		struct Token *body = add_hideset(m->body, hs);
 		*rest = append(body, token->next);
+		// pass at_bol and has_space
+		(*rest)->at_bol = token->at_bol;
+		(*rest)->has_space = token->has_space;
 		return true;
 	}
 
@@ -642,6 +648,9 @@ static bool expand_macro(struct Token **rest, struct Token *token)
 	body = add_hideset(body, hs);
 	// append
 	*rest = append(body, token->next);
+	// pass at_bol and has_space
+	(*rest)->at_bol = macro_token->at_bol;
+	(*rest)->has_space = macro_token->has_space;
 	return true;
 }
 
