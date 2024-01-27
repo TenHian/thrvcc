@@ -104,6 +104,12 @@ int main()
 	ASSERT(8, sizeof(5.l));
 	ASSERT(8, sizeof(2.0L));
 
+	// [180] support line continuation
+	printf("[180] support line continuation\n");
+	assert(1, size\
+of(char),
+	       "sizeof(char)");
+
 	printf("OK\n");
 	return 0;
 }

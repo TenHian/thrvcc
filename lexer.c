@@ -617,12 +617,48 @@ struct File *new_file(char *name, int file_no, char *contents)
 	return fp;
 }
 
+// remove line continuation, i.e., backslashes + line breaks
+static void remove_backslash_newline(char *p)
+{
+	// index "old" of the old string (from 0)
+	// index "new" of the new string (from 0)
+	// new always <= old
+	int old = 0, new = 0;
+
+	// reg lines deleted
+	int line_del = 0;
+
+	// if char pointed to exist
+	while (p[old]) {
+		// if '\\' and '\n'
+		if (p[old] == '\\' && p[old + 1] == '\n') {
+			// skip 2 char
+			old += 2;
+			// lines deleted +1
+			line_del++;
+		} else if (p[old] == '\n') { // if '\n'
+			// p[new] = '\n'
+			// old new both +1
+			p[new ++] = p[old++];
+			// if N continuation lines have been deleted,
+			// then add N line breaks here
+			// to ensure that the line number remains the same
+			for (; line_del > 0; line_del--)
+				p[new ++] = '\n';
+		} else { // other case, p[new] = p[old]
+			p[new ++] = p[old++];
+		}
+	}
+}
+
 // file lexing
 struct Token *lexer_file(char *path)
 {
 	char *formula = read_file(path);
 	if (!formula)
 		return NULL;
+
+	remove_backslash_newline(formula);
 
 	static int file_no;
 	struct File *fp = new_file(path, file_no + 1, formula);
