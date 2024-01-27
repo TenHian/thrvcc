@@ -34,6 +34,8 @@ static struct Macro *Macros;
 // global #if stack
 static struct CondIncl *CondIncls;
 
+static struct Macro *find_macro(struct Token *token);
+
 static struct Token *preprocess(struct Token *token);
 
 // if # at the begin of line
@@ -224,11 +226,49 @@ static struct Token *copy_line(struct Token **rest, struct Token *token)
 	return head.next;
 }
 
+static struct Token *new_num_token(int val, struct Token *tmpl)
+{
+	char *buf = format("%d\n", val);
+	return lexer(new_file(tmpl->file->name, tmpl->file->file_no, buf));
+}
+
+static struct Token *read_const_expr(struct Token **rest, struct Token *token)
+{
+	token = copy_line(rest, token);
+	struct Token head = {};
+	struct Token *cur = &head;
+
+	while (token->kind != TK_EOF) {
+		// "defined(foo)" or "defined foo", if foo exists, 1 ,else 0.
+		if (equal(token, "defined")) {
+			struct Token *start = token;
+			// consume (
+			bool has_paren = consume(&token, token->next, "(");
+
+			if (token->kind != TK_IDENT)
+				error_token(start,
+					    "macro name must be an identifier");
+			struct Macro *m = find_macro(token);
+			token = token->next;
+
+			if (has_paren)
+				token = skip(token, ")");
+
+			cur = cur->next = new_num_token(m ? 1 : 0, start);
+			continue;
+		}
+		cur = cur->next = token;
+		token = token->next;
+	}
+	cur->next = token;
+	return head.next;
+}
+
 // read and evaluate constant expressions.
 static long eval_constexpr(struct Token **rest, struct Token *token)
 {
 	struct Token *start = token;
-	struct Token *expr = copy_line(rest, token->next);
+	struct Token *expr = read_const_expr(rest, token->next);
 	// parse Macro var
 	expr = preprocess(expr);
 
