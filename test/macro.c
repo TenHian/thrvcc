@@ -1,8 +1,5 @@
-int assert(int expected, int actual, char *code);
-int printf(char *fmt, ...);
-int sprintf(char *buf, char *fmt, ...);
-int strcmp(char *p, char *q);
-int memcmp(char *p, char *q, long n);
+// [176] use the built-in preprocessor for all tests
+#include "test.h"
 
 // [158] support #include "..."
 #include "include1.h"
