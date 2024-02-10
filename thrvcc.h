@@ -309,6 +309,7 @@ int64_t const_expr(struct Token **rest, struct Token *token);
 // get input file
 struct File **get_input_files(void);
 struct File *new_file(char *name, int file_no, char *contents);
+bool file_exists(char *path);
 struct Token *lexer(struct File *fp);
 // Lexical analysis
 struct Token *lexer_file(char *path);

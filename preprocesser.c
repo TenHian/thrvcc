@@ -1,4 +1,7 @@
 #include "thrvcc.h"
+#include <errno.h>
+#include <libgen.h>
+#include <string.h>
 
 struct MacroParam {
 	struct MacroParam *next;
@@ -439,11 +442,12 @@ static struct MacroArg *find_macro_arg(struct MacroArg *args,
 
 // concatenates all the terminators in the terminator chain table
 // and returns a new string
-static char *join_tokens(struct Token *token)
+static char *join_tokens(struct Token *token, struct Token *end)
 {
 	// calculate the length of the final terminator
 	int len = 1;
-	for (struct Token *t = token; t && t->kind != TK_EOF; t = t->next) {
+	for (struct Token *t = token; t != end && t->kind != TK_EOF;
+	     t = t->next) {
 		// not the first, and preceded by a space, \
 		// the count is increased by one
 		if (t != token && t->has_space)
@@ -453,7 +457,8 @@ static char *join_tokens(struct Token *token)
 	char *buf = calloc(1, len);
 	// copy
 	int pos = 0;
-	for (struct Token *t = token; t && t->kind != TK_EOF; t = t->next) {
+	for (struct Token *t = token; t != end && t->kind != TK_EOF;
+	     t = t->next) {
 		// not the first, and preceded by a space, \
 		// set space
 		if (t != token && t->has_space)
@@ -470,7 +475,7 @@ static char *join_tokens(struct Token *token)
 // returns a string terminator
 static struct Token *stringize(struct Token *hash, struct Token *arg)
 {
-	char *s = join_tokens(arg);
+	char *s = join_tokens(arg, NULL);
 	return new_str_token(s, hash);
 }
 
@@ -654,6 +659,54 @@ static bool expand_macro(struct Token **rest, struct Token *token)
 	return true;
 }
 
+// read #include args
+static char *read_include_filename(struct Token **rest, struct Token *token,
+				   bool *is_dquote)
+{
+	// case 1, #include "foo.h"
+	if (token->kind == TK_STR) {
+		// could not escape any of the escape characters
+		*is_dquote = true;
+		*rest = skip_line(token->next);
+		return strndup(token->location + 1, token->len - 2);
+	}
+	// case 2, #include<foo.h>
+	if (equal(token, "<")) {
+		struct Token *start = token;
+
+		for (; !equal(token, ">"); token = token->next)
+			if (token->at_bol || token->kind == TK_EOF)
+				error_token(token, "expected '>'");
+
+		// no ""
+		*is_dquote = false;
+		// jmp to begin of line
+		*rest = skip_line(token->next);
+		// from '<' to '>', splice into a string
+		return join_tokens(start->next, token);
+	}
+	// case 3, #include FOO
+	if (token->kind == TK_IDENT) {
+		// macro expand
+		struct Token *token2 = preprocess(copy_line(rest, token));
+		// then read
+		return read_include_filename(&token2, token2, is_dquote);
+	}
+
+	error_token(token, "expected a filename");
+	return NULL;
+}
+
+static struct Token *include_file(struct Token *token, char *path,
+				  struct Token *filename_token)
+{
+	struct Token *token2 = lexer_file(path);
+	if (!token2)
+		error_token(filename_token, "%s: cannot open file: %s", path,
+			    strerror(errno));
+	return append(token2, token);
+}
+
 // iterate terminator, process with macro and directive
 static struct Token *preprocess(struct Token *token)
 {
@@ -678,27 +731,29 @@ static struct Token *preprocess(struct Token *token)
 
 		// #include
 		if (equal(token, "include")) {
-			// jump "
-			token = token->next;
+			// "" exists?
+			bool is_dquote;
+			// get filename
+			char *filename = read_include_filename(
+				&token, token->next, &is_dquote);
 
-			if (token->kind != TK_STR)
-				error_token(token, "expected a filename");
-
-			char *path;
-			if (token->str[0] == '/')
-				// absolute path
-				path = token->str;
-			else
-				path = format(
+			// '/' at begin, absolute path
+			if (filename[0] != '/') {
+				// start with the directory where \
+				// the current file is located
+				char *path = format(
 					"%s/%s",
-					dirname(strdup(token->file->name)),
-					token->str);
-
-			struct Token *token2 = lexer_file(path);
-			if (!token2)
-				error_token(token, "%s", strerror(errno));
-			token = skip_line(token->next);
-			token = append(token2, token);
+					dirname(strdup(start->file->name)),
+					filename);
+				// if path exists, include
+				if (file_exists(path)) {
+					token = include_file(token, path,
+							     start->next->next);
+					continue;
+				}
+			}
+			token = include_file(token, filename,
+					     start->next->next);
 			continue;
 		}
 

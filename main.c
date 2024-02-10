@@ -305,7 +305,7 @@ static char *find_file(char *pattern)
 	return path;
 }
 
-static bool file_exists(char *path)
+bool file_exists(char *path)
 {
 	struct stat st;
 	return !stat(path, &st);
