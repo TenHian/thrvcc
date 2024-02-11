@@ -1,4 +1,6 @@
 #include "thrvcc.h"
+#include <libgen.h>
+#include <string.h>
 
 static char *RVPath = "";
 
@@ -49,6 +51,16 @@ static bool take_arg(char *arg)
 		if (!strcmp(arg, A[i]))
 			return true;
 	return false;
+}
+
+static void add_default_include_paths(char *argv)
+{
+	str_array_push(&IncludePaths,
+		       format("%s/include", dirname(strdup(argv))));
+
+	str_array_push(&IncludePaths, "/usr/local/include");
+	str_array_push(&IncludePaths, "/usr/include/riscv64-linux-gnu");
+	str_array_push(&IncludePaths, "/usr/include");
 }
 
 // parse the args passed in
@@ -466,6 +478,7 @@ int main(int argc, char *argv[])
 	// if -cc1
 	// compile c to asm directly
 	if (OptCC1) {
+		add_default_include_paths(argv[0]);
 		cc1();
 		return 0;
 	}
