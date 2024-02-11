@@ -23,7 +23,7 @@ cd riscv-gnu-toolchain
 mkdir build
 cd build
 ../configure --prefix=$HOME/riscv
-make -j$(nproc)
+make build-sim linux -j$(nproc)
 ```
 
 ### Build with Makefile
@@ -43,7 +43,7 @@ make test
 ## Usage
 
 ```bash
-./thrvcc -o out.s in.c
+./thrvcc -o out in.c
 ./thrvcc -S in.c
 ./thrvcc in.c
 ./thrvcc --help
