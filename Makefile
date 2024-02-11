@@ -21,7 +21,7 @@ thrvcc: $(OBJS)
 $(OBJS): thrvcc.h
 
 test/%.exe: thrvcc test/%.c
-	./thrvcc -c -o test/$*.o test/$*.c
+	./thrvcc -Itest -c -o test/$*.o test/$*.c
 	$(RVCC) -static -o $@ test/$*.o -xc test/common
 
 test: $(TESTS)

@@ -1,7 +1,4 @@
 #include "thrvcc.h"
-#include <errno.h>
-#include <libgen.h>
-#include <string.h>
 
 struct MacroParam {
 	struct MacroParam *next;
@@ -659,6 +656,21 @@ static bool expand_macro(struct Token **rest, struct Token *token)
 	return true;
 }
 
+static char *search_include_paths(char *filename)
+{
+	// absolute path
+	if (filename[0] == '/')
+		return filename;
+
+	// search
+	for (int i = 0; i < IncludePaths.len; i++) {
+		char *path = format("%s/%s", IncludePaths.data[i], filename);
+		if (file_exists(path))
+			return path;
+	}
+	return NULL;
+}
+
 // read #include args
 static char *read_include_filename(struct Token **rest, struct Token *token,
 				   bool *is_dquote)
@@ -738,7 +750,7 @@ static struct Token *preprocess(struct Token *token)
 				&token, token->next, &is_dquote);
 
 			// '/' at begin, absolute path
-			if (filename[0] != '/') {
+			if (filename[0] != '/' && is_dquote) {
 				// start with the directory where \
 				// the current file is located
 				char *path = format(
@@ -752,7 +764,9 @@ static struct Token *preprocess(struct Token *token)
 					continue;
 				}
 			}
-			token = include_file(token, filename,
+			// include directly
+			char *path = search_include_paths(filename);
+			token = include_file(token, path ? path : filename,
 					     start->next->next);
 			continue;
 		}

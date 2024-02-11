@@ -271,6 +271,7 @@ extern struct Type *TyFloat;
 extern struct Type *TyDouble;
 extern struct Type *TyVoid;
 extern struct Type *TyBool;
+extern struct StringArray IncludePaths;
 extern char *BaseFile;
 
 void str_array_push(struct StringArray *arr, char *s);

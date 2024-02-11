@@ -108,4 +108,11 @@ echo "#include \"$tmp/out1\"" | ./thrvcc -E -o $tmp/out2 -
 cat $tmp/out2 | grep -q foo
 check '-E and -o'
 
+# [182] support -I<Dir>
+# -I
+mkdir $tmp/dir
+echo foo > $tmp/dir/i-option-test
+echo "#include \"i-option-test\"" | ./thrvcc -I$tmp/dir -E - | grep -q foo
+check -I
+
 echo OK

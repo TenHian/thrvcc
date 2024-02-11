@@ -19,6 +19,8 @@ static bool OptHashHashHash;
 // -o
 static char *OptO;
 
+struct StringArray IncludePaths;
+
 // input file name
 char *BaseFile;
 
@@ -41,7 +43,12 @@ static void usage(int status)
 // determines whether an option that takes one parameter has a single parameter
 static bool take_arg(char *arg)
 {
-	return !strcmp(arg, "-o");
+	char *A[] = { "-o", "-I" };
+
+	for (int i = 0; i < sizeof(A) / sizeof(*A); i++)
+		if (!strcmp(arg, A[i]))
+			return true;
+	return false;
 }
 
 // parse the args passed in
@@ -100,6 +107,12 @@ static void parse_args(int argc, char **argv)
 		// parse -E
 		if (!strcmp(argv[i], "-E")) {
 			OptE = true;
+			continue;
+		}
+
+		// parse -I
+		if (!strncmp(argv[i], "-I", 2)) {
+			str_array_push(&IncludePaths, argv[i] + 2);
 			continue;
 		}
 
