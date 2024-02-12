@@ -3082,6 +3082,9 @@ static struct Token *function(struct Token *token, struct Type *base_type,
 		fn->va_area = new_lvar("__va_area__", array_of(TyChar, 64));
 
 	token = skip(token, "{");
+	// __func__ is defined as a local variable containing current function name
+	push_scope("__func__")->var = new_string_literal(
+		fn->name, array_of(TyChar, strlen(fn->name) + 1));
 	// func body store AST, Locals store var
 	fn->body = compoundstmt(&token, token);
 	fn->locals = Locals;

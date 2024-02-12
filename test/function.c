@@ -149,6 +149,12 @@ int param_decay2(int x())
 	return x();
 }
 
+// [187] support __func__
+char *func_fn(void)
+{
+	return __func__;
+}
+
 int main()
 {
 	// [25] Support for zero-parameter function definitions
@@ -307,6 +313,11 @@ int main()
 	// [150] degenerate functions into pointers in function arguments
 	printf("[150] degenerate functions into pointers in function arguments\n");
 	ASSERT(3, param_decay2(ret3));
+
+	printf("[187] support __func__\n");
+	ASSERT(5, sizeof(__func__));
+	ASSERT(0, strcmp("main", __func__));
+	ASSERT(0, strcmp("func_fn", func_fn()));
 
 	printf("OK\n");
 	return 0;
