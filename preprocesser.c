@@ -11,6 +11,9 @@ struct MacroArg {
 	struct Token *token;
 };
 
+// macro process handler
+typedef struct Token *MacroHandlerFn(struct Token *);
+
 // maceo variable
 struct Macro {
 	struct Macro *next;
@@ -19,6 +22,7 @@ struct Macro {
 	struct MacroParam *params;
 	struct Token *body;
 	bool deleted;
+	MacroHandlerFn *handler;
 };
 
 // #if can be nested, so use the stack to hold nested #if
@@ -611,6 +615,13 @@ static bool expand_macro(struct Token **rest, struct Token *token)
 	if (!m)
 		return false;
 
+	// if macro set its own process function(handler), such as __LINE__
+	if (m->handler) {
+		*rest = m->handler(token);
+		(*rest)->next = token->next;
+		return true;
+	}
+
 	// if macro var
 	if (m->is_obj_like) {
 		// macro expand once, add it into hideset
@@ -618,6 +629,9 @@ static bool expand_macro(struct Token **rest, struct Token *token)
 			hideset_union(token->hideset, new_hideset(m->name));
 		// after process this macro var, pass hidset to terminators behind
 		struct Token *body = add_hideset(m->body, hs);
+		// reg macros before expanded
+		for (struct Token *t = body; t->kind != TK_EOF; t = t->next)
+			t->origin = token;
 		*rest = append(body, token->next);
 		// pass at_bol and has_space
 		(*rest)->at_bol = token->at_bol;
@@ -648,6 +662,9 @@ static bool expand_macro(struct Token **rest, struct Token *token)
 	struct Token *body = subst(m->body, args);
 	// set macro func inner hideset
 	body = add_hideset(body, hs);
+	// reg macro func before macro expanded
+	for (struct Token *t = body; t->kind != TK_EOF; t = t->next)
+		t->origin = macro_token;
 	// append
 	*rest = append(body, token->next);
 	// pass at_bol and has_space
@@ -884,6 +901,30 @@ static void define_macro(char *name, char *buf)
 	push_macro(name, true, token);
 }
 
+// add built-in macro and its handler
+static struct Macro *add_builtin(char *name, MacroHandlerFn *fn)
+{
+	struct Macro *m = push_macro(name, true, NULL);
+	m->handler = fn;
+	return m;
+}
+
+static struct Token *file_macro(struct Token *tmpl)
+{
+	// if origin macro exists, use origin after iterate
+	while (tmpl->origin)
+		tmpl = tmpl->origin;
+	return new_str_token(tmpl->file->name, tmpl);
+}
+
+static struct Token *line_macro(struct Token *tmpl)
+{
+	// if origin macro exists, use origin after iterate
+	while (tmpl->origin)
+		tmpl = tmpl->origin;
+	return new_num_token(tmpl->line_no, tmpl);
+}
+
 static void init_macros(void)
 {
 	define_macro("_LP64", "1");
@@ -932,6 +973,9 @@ static void init_macros(void)
 	define_macro("__riscv_div", "1");
 	define_macro("__riscv_float_abi_double", "1");
 	define_macro("__riscv_flen", "64");
+
+	add_builtin("__FILE__", file_macro);
+	add_builtin("__LINE__", line_macro);
 }
 
 // preprocesser entry func

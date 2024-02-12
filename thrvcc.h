@@ -129,6 +129,7 @@ struct Token {
 	bool at_bol; // terminator is true if at begin of line
 	bool has_space; // if have space before terminator
 	struct HideSet *hideset; // used for hidden sets when macros are expanded
+	struct Token *origin; // origin terminator before macro expanded
 };
 
 struct Type {

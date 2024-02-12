@@ -4,6 +4,12 @@
 // [158] support #include "..."
 #include "include1.h"
 
+// [186] support __FILE__ and __LINE__
+char *main_filename1 = __FILE__;
+int main_line1 = __LINE__;
+#define LINE() __LINE__
+int main_line2 = LINE();
+
 // [157] support empty directive
 #
 
@@ -362,6 +368,13 @@ int main()
 	ASSERT(4, foo);
 
 #undef foo
+
+	printf("[186] support __FILE__ and __LINE__\n");
+	ASSERT(0, strcmp(main_filename1, "test/macro.c"));
+	ASSERT(9, main_line1);
+	ASSERT(11, main_line2);
+	ASSERT(0, strcmp(include1_filename, "test/include1.h"));
+	ASSERT(5, include1_line);
 
 	printf("OK\n");
 	return 0;
