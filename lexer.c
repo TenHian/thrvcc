@@ -288,9 +288,9 @@ static struct Token *read_string_literal(char *start)
 }
 
 // read character literals
-static struct Token *read_char_literal(char *start)
+static struct Token *read_char_literal(char *start, char *quote)
 {
-	char *p = start + 1;
+	char *p = quote + 1;
 	// parse character case '\0'
 	if (*p == '\0')
 		error_at(start, "unclosed char literal");
@@ -526,8 +526,16 @@ struct Token *lexer(struct File *fp)
 
 		// parse char literal
 		if (*formula == '\'') {
-			cur->next = read_char_literal(formula);
+			cur->next = read_char_literal(formula, formula);
 			cur = cur->next;
+			formula += cur->len;
+			continue;
+		}
+
+		// wide character literal, two bytes
+		if (is_start_with(formula, "L'")) {
+			cur = cur->next =
+				read_char_literal(formula, formula + 1);
 			formula += cur->len;
 			continue;
 		}

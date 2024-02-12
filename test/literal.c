@@ -110,6 +110,11 @@ int main()
 of(char),
 	       "sizeof(char)");
 
+	// [190] recognize wide character literals
+	printf("[190] recognize wide character literals\n");
+	ASSERT(4, sizeof(L'\0'));
+	ASSERT(97, L'a');
+
 	printf("OK\n");
 	return 0;
 }
