@@ -864,6 +864,10 @@ static struct Token *preprocess(struct Token *token)
 			continue;
 		}
 
+		// #error
+		if (equal(token, "error"))
+			error_token(token, "error");
+
 		if (token->at_bol)
 			continue;
 
