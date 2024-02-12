@@ -877,9 +877,69 @@ static struct Token *preprocess(struct Token *token)
 	cur->next = token;
 	return head.next;
 }
+
+static void define_macro(char *name, char *buf)
+{
+	struct Token *token = lexer(new_file("<built-in", 1, buf));
+	push_macro(name, true, token);
+}
+
+static void init_macros(void)
+{
+	define_macro("_LP64", "1");
+	define_macro("__C99_MACRO_WITH_VA_ARGS", "1");
+	define_macro("__ELF__", "1");
+	define_macro("__LP64__", "1");
+	define_macro("__SIZEOF_DOUBLE__", "8");
+	define_macro("__SIZEOF_FLOAT__", "4");
+	define_macro("__SIZEOF_INT__", "4");
+	define_macro("__SIZEOF_LONG_DOUBLE__", "8");
+	define_macro("__SIZEOF_LONG_LONG__", "8");
+	define_macro("__SIZEOF_LONG__", "8");
+	define_macro("__SIZEOF_POINTER__", "8");
+	define_macro("__SIZEOF_PTRDIFF_T__", "8");
+	define_macro("__SIZEOF_SHORT__", "2");
+	define_macro("__SIZEOF_SIZE_T__", "8");
+	define_macro("__SIZE_TYPE__", "unsigned long");
+	define_macro("__STDC_HOSTED__", "1");
+	define_macro("__STDC_NO_ATOMICS__", "1");
+	define_macro("__STDC_NO_COMPLEX__", "1");
+	define_macro("__STDC_NO_THREADS__", "1");
+	define_macro("__STDC_NO_VLA__", "1");
+	define_macro("__STDC_VERSION__", "201112L");
+	define_macro("__STDC__", "1");
+	define_macro("__USER_LABEL_PREFIX__", "");
+	define_macro("__alignof__", "_Alignof");
+	define_macro("__rvcc__", "1");
+	define_macro("__const__", "const");
+	define_macro("__gnu_linux__", "1");
+	define_macro("__inline__", "inline");
+	define_macro("__linux", "1");
+	define_macro("__linux__", "1");
+	define_macro("__signed__", "signed");
+	define_macro("__typeof__", "typeof");
+	define_macro("__unix", "1");
+	define_macro("__unix__", "1");
+	define_macro("__volatile__", "volatile");
+	define_macro("linux", "1");
+	define_macro("unix", "1");
+	define_macro("__riscv_mul", "1");
+	define_macro("__riscv_muldiv", "1");
+	define_macro("__riscv_fdiv", "1");
+	define_macro("__riscv_xlen", "64");
+	define_macro("__riscv", "1");
+	define_macro("__riscv64", "1");
+	define_macro("__riscv_div", "1");
+	define_macro("__riscv_float_abi_double", "1");
+	define_macro("__riscv_flen", "64");
+}
+
 // preprocesser entry func
 struct Token *preprocesser(struct Token *token)
 {
+	// init predefined macros
+	init_macros();
+
 	token = preprocess(token);
 	// if have #if left, error
 	if (CondIncls)
