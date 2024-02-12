@@ -978,6 +978,45 @@ static void init_macros(void)
 	add_builtin("__LINE__", line_macro);
 }
 
+// splice adjacent string literals
+static void join_adjacent_string_literals(struct Token *token1)
+{
+	// iterate till terminator
+	while (token1->kind != TK_EOF) {
+		// judgements
+		if (token1->kind != TK_STR || token1->next->kind != TK_STR) {
+			token1 = token1->next;
+			continue;
+		}
+
+		// point to next adjacent string
+		struct Token *token2 = token1->next;
+		while (token2->kind == TK_STR)
+			token2 = token2->next;
+
+		// iterate to reg length of all spliced strings
+		int len = token1->type->array_len;
+		for (struct Token *t = token1->next; t != token2; t = t->next)
+			len = len + t->type->array_len - 1;
+
+		char *buf = calloc(token1->type->base->size, len);
+
+		// write
+		int i = 0;
+		for (struct Token *t = token1; t != token2; t = t->next) {
+			memcpy(buf + i, t->str, t->type->size);
+			i = i + t->type->size - t->type->base->size;
+		}
+
+		// construct
+		*token1 = *copy_token(token1);
+		token1->type = array_of(token1->type->base, len);
+		token1->str = buf;
+		token1->next = token2;
+		token1 = token2;
+	}
+}
+
 // preprocesser entry func
 struct Token *preprocesser(struct Token *token)
 {
@@ -990,5 +1029,7 @@ struct Token *preprocesser(struct Token *token)
 		error_token(CondIncls->token,
 			    "unterminated conditional directive");
 	convert_keywords(token);
+	// splicing adjacent string literals
+	join_adjacent_string_literals(token);
 	return token;
 }

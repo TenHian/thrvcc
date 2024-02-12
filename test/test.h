@@ -10,6 +10,9 @@ void assert(int expected, int actual, char *code);
 int strcmp(char *p, char *q);
 int memcmp(char *p, char *q, long n);
 
+// [189] splicing adjacent string literals
+int strncmp(char *p, char *q, long n);
+
 // [126] support for variadic function call
 int sprintf(char *buf, char *fmt, ...);
 
